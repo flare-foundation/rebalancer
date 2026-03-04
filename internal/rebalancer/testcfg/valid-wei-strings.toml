@@ -1,0 +1,13 @@
+check_interval = "2m"
+warning_balance_flr = 500
+tx_timeout = "5s"
+max_retries = 2
+
+[[addresses]]
+address = "0x2222222222222222222222222222222222222222"
+min_balance_wei = "15000000000000000000"
+top_up_value_wei = "150000000000000000000"
+
+[[addresses]]
+address = "0x3333333333333333333333333333333333333333"
+# Uses defaults by not specifying min_balance_wei and top_up_value_wei

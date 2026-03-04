@@ -1,0 +1,67 @@
+# Rebalancer Configuration File
+#
+# This is a template configuration file for the rebalancer service.
+# Copy this file to rebalancer.toml and fill in the required values.
+# Environment variables can override any of these settings.
+
+# Check interval for monitoring account balances
+# Format: duration string (e.g., "5m", "30s", "2h")
+# Default: not set, can be overridden with REBALANCER_CHECK_INTERVAL
+check_interval = "5m"
+
+# Warning threshold for FLR balance
+# When an account's balance drops below this value (in FLR), a warning is logged
+# Default: not set, can be overridden with REBALANCER_WARNING_BALANCE_FLR
+warning_balance_flr = 1000
+
+# Timeout for individual transactions
+# Format: duration string (e.g., "10s", "2m")
+# Default: not set, can be overridden with REBALANCER_TX_TIMEOUT
+tx_timeout = "10s"
+
+# Maximum number of retries for failed transactions
+# Default: not set, can be overridden with REBALANCER_MAX_RETRIES
+max_retries = 3
+
+# Logger configuration
+# Configures the logging behavior of the rebalancer
+# For detailed options, see: github.com/flare-foundation/go-flare-common/pkg/logger
+[logger]
+# Log level (debug, info, warn, error)
+# Default: info
+level = "info"
+# Log format (json or text)
+# Default: text
+format = "text"
+
+# List of addresses to monitor and rebalance
+# Each address can have optional custom min_balance_wei and top_up_value_wei
+# If not specified, the rebalancer uses default values
+
+[[addresses]]
+# Ethereum address to monitor (required, must be 0x prefixed hex)
+address = "0x1234567890123456789012345678901234567890"
+# Minimum balance threshold in wei (optional)
+# If balance drops below this, a top-up is triggered
+# Can be specified as a number or string (for large values)
+min_balance_wei = "10000000000000000000"
+# Amount to top up to in wei (optional)
+# When triggered, the account will receive this amount
+# Can be specified as a number or string (for large values)
+top_up_value_wei = "100000000000000000000"
+
+[[addresses]]
+# Another example address with different thresholds
+address = "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd"
+min_balance_wei = "20000000000000000000"
+top_up_value_wei = "200000000000000000000"
+
+# Note: The following environment variables can override TOML values:
+# - ETH_RPC_URL: Ethereum RPC endpoint (not set in TOML)
+# - REBALANCER_PRIVATE_KEY: Private key for signing transactions (not set in TOML)
+# - REBALANCER_CHECK_INTERVAL: Override check_interval
+# - REBALANCER_WARNING_BALANCE_FLR: Override warning_balance_flr
+# - REBALANCER_TX_TIMEOUT: Override tx_timeout
+# - REBALANCER_MAX_RETRIES: Override max_retries
+#
+# Logger configuration is loaded from the [logger] section and applied at startup.

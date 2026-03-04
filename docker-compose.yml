@@ -1,0 +1,34 @@
+version: "3.8"
+
+services:
+  rebalancer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rebalancer
+    restart: unless-stopped
+    environment:
+      # Required environment variables (no defaults)
+      ETH_RPC_URL: ${ETH_RPC_URL:-http://localhost:8545}
+      REBALANCER_PRIVATE_KEY: ${REBALANCER_PRIVATE_KEY}
+
+      # Optional overrides (can override TOML values)
+      REBALANCER_CHECK_INTERVAL: ${REBALANCER_CHECK_INTERVAL:-5m}
+      REBALANCER_WARNING_BALANCE_FLR: ${REBALANCER_WARNING_BALANCE_FLR:-1000}
+      REBALANCER_TX_TIMEOUT: ${REBALANCER_TX_TIMEOUT:-10s}
+      REBALANCER_MAX_RETRIES: ${REBALANCER_MAX_RETRIES:-3}
+
+    # Mount config file (copy rebalancer.toml.example to rebalancer.toml and customize)
+    volumes:
+      - ./rebalancer.toml:/app/rebalancer.toml:ro
+
+    # Expose metrics endpoint
+    ports:
+      - "8080:8080"
+
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
