@@ -3,16 +3,17 @@ module github.com/flare-network/rebalancer
 go 1.25.5
 
 require (
+	github.com/BurntSushi/toml v1.4.0
 	github.com/ethereum/go-ethereum v1.17.1
 	github.com/flare-foundation/flare-system-client v1.0.9
 	github.com/flare-foundation/go-flare-common v1.2.0
+	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/sync v0.19.0
 )
 
 require (
-	github.com/BurntSushi/toml v1.4.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/ProjectZKM/Ziren/crates/go-runtime/zkvm_runtime v0.0.0-20260112020553-64c30dda3cfd // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -31,7 +32,6 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/holiman/uint256 v1.3.2 // indirect
-	github.com/kelseyhightower/envconfig v1.4.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect

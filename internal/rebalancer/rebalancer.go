@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"net/url"
 	"time"
 
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -36,7 +37,19 @@ func New(cfg Config) (*Rebalancer, error) {
 	}
 
 	// Connect to Ethereum node
-	client, err := ethclient.Dial(cfg.NodeURL)
+	nodeURL := cfg.NodeURL
+	if cfg.APIKey != "" {
+		u, err := url.Parse(nodeURL)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse NodeURL: %w", err)
+		}
+		q := u.Query()
+		q.Set("x-apikey", cfg.APIKey)
+		u.RawQuery = q.Encode()
+		nodeURL = u.String()
+	}
+
+	client, err := ethclient.Dial(nodeURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial ethclient: %w", err)
 	}

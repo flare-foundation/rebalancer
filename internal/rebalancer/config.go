@@ -54,6 +54,7 @@ type Config struct {
 	// ENV-only
 	NodeURL       string `toml:"-" envconfig:"ETH_RPC_URL"`
 	PrivateKeyHex string `toml:"-" envconfig:"REBALANCER_PRIVATE_KEY"`
+	APIKey        string `toml:"-" envconfig:"API_KEY"`
 
 	// TOML + ENV overrides
 	CheckInterval     time.Duration          `toml:"check_interval" envconfig:"REBALANCER_CHECK_INTERVAL"`
