@@ -2,14 +2,16 @@ package rebalancer
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"errors"
 	"fmt"
 	"math/big"
 	"net/url"
+	"strings"
 	"time"
 
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/flare-foundation/flare-system-client/utils/credentials"
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
 	"github.com/flare-network/rebalancer/pkg/rebalancer"
 	"github.com/flare-network/rebalancer/pkg/txmng"
@@ -55,7 +57,7 @@ func New(cfg Config) (*Rebalancer, error) {
 	}
 
 	// Parse private key
-	pk, err := credentials.PrivateKeyFromHex(cfg.PrivateKeyHex)
+	pk, err := PrivateKeyFromHex(cfg.PrivateKeyHex)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse private key: %w", err)
 	}
@@ -178,4 +180,14 @@ func (r *Rebalancer) monitorSenderBalance(ctx context.Context) {
 			r.metrics.senderBalance.Set(fBalVal)
 		}
 	}
+}
+
+func PrivateKeyFromHex(privateKey string) (*ecdsa.PrivateKey, error) {
+	privateKey = strings.TrimPrefix(privateKey, "0x")
+
+	privKey, err := crypto.HexToECDSA(privateKey)
+	if err != nil {
+		return nil, errors.New("cannot parse private key")
+	}
+	return privKey, nil
 }
