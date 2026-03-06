@@ -3,6 +3,7 @@ package txmng
 import (
 	"context"
 	"crypto/ecdsa"
+	"errors"
 	"fmt"
 	"math/big"
 	"sync"
@@ -241,7 +242,7 @@ func TestSendHappyPath(t *testing.T) {
 func TestSendEstimateGasError(t *testing.T) {
 	pk := testPrivateKey()
 	mock := newMockChainClient()
-	mock.estimateGasErr = fmt.Errorf("execution reverted")
+	mock.estimateGasErr = errors.New("execution reverted")
 
 	mgr, err := New(pk, mock, Config{TxTimeout: 5 * time.Second}, nil)
 	require.NoError(t, err)
@@ -268,7 +269,7 @@ func TestSendEstimateGasError(t *testing.T) {
 func TestSendAlreadyKnown(t *testing.T) {
 	pk := testPrivateKey()
 	mock := newMockChainClient()
-	mock.sendTxErr = fmt.Errorf("already known")
+	mock.sendTxErr = errors.New("already known")
 
 	mgr, err := New(pk, mock, Config{TxTimeout: 5 * time.Second}, nil)
 	require.NoError(t, err)
@@ -410,7 +411,7 @@ func TestEstimateGasLimit(t *testing.T) {
 // TestEstimateGasLimitWithError tests that EstimateGas error is propagated.
 func TestEstimateGasLimitWithError(t *testing.T) {
 	mock := newMockChainClient()
-	mock.estimateGasErr = fmt.Errorf("execution reverted")
+	mock.estimateGasErr = errors.New("execution reverted")
 
 	limit, err := estimateGasLimit(
 		context.Background(),
@@ -432,9 +433,9 @@ func TestIsAlreadyKnown(t *testing.T) {
 		err    error
 		expect bool
 	}{
-		{"contains already known", fmt.Errorf("already known"), true},
-		{"contains in message", fmt.Errorf("tx is already known"), true},
-		{"does not contain", fmt.Errorf("some other error"), false},
+		{"contains already known", errors.New("already known"), true},
+		{"contains in message", errors.New("tx is already known"), true},
+		{"does not contain", errors.New("some other error"), false},
 		{"nil error", nil, false},
 	}
 
@@ -457,9 +458,9 @@ func TestIsNonceTooLow(t *testing.T) {
 		err    error
 		expect bool
 	}{
-		{"contains nonce too low", fmt.Errorf("nonce too low"), true},
-		{"contains in message", fmt.Errorf("tx has nonce too low"), true},
-		{"does not contain", fmt.Errorf("some other error"), false},
+		{"contains nonce too low", errors.New("nonce too low"), true},
+		{"contains in message", errors.New("tx has nonce too low"), true},
+		{"does not contain", errors.New("some other error"), false},
 	}
 
 	for _, tt := range tests {
@@ -478,7 +479,7 @@ func TestIsTimeout(t *testing.T) {
 		expect bool
 	}{
 		{"context deadline exceeded", context.DeadlineExceeded, true},
-		{"other error", fmt.Errorf("some error"), false},
+		{"other error", errors.New("some error"), false},
 		{"wrapped timeout", fmt.Errorf("wrapped: %w", context.DeadlineExceeded), true},
 	}
 

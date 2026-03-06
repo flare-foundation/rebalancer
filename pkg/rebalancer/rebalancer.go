@@ -2,6 +2,7 @@ package rebalancer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"math/big"
@@ -29,7 +30,7 @@ type Rebalancer struct {
 // New creates a new Rebalancer instance.
 func New(sender Sender, balanceChecker BalanceChecker, cfg Config, logger Logger) (*Rebalancer, error) {
 	if sender == nil {
-		return nil, fmt.Errorf("sender is required")
+		return nil, errors.New("sender is required")
 	}
 	if logger == nil {
 		logger = &NoOpLogger{}
@@ -72,16 +73,16 @@ func New(sender Sender, balanceChecker BalanceChecker, cfg Config, logger Logger
 // AddAddress adds a new address to be tracked for rebalancing.
 func (r *Rebalancer) AddAddress(ta *TrackedAddress) error {
 	if ta == nil {
-		return fmt.Errorf("tracked address must not be nil")
+		return errors.New("tracked address must not be nil")
 	}
 	if ta.MinBalance == nil || ta.TopUpValue == nil {
-		return fmt.Errorf("min balance and top up value must not be nil")
+		return errors.New("min balance and top up value must not be nil")
 	}
 	if ta.MinBalance.Cmp(big.NewInt(0)) <= 0 || ta.TopUpValue.Cmp(big.NewInt(0)) <= 0 {
-		return fmt.Errorf("min balance and top up value must be greater than 0")
+		return errors.New("min balance and top up value must be greater than 0")
 	}
 	if ta.TopUpValue.Cmp(ta.MinBalance) < 0 {
-		return fmt.Errorf("top up value must be greater than or equal to min balance")
+		return errors.New("top up value must be greater than or equal to min balance")
 	}
 
 	return r.addAddressInternal(ta)
@@ -143,7 +144,7 @@ func (r *Rebalancer) GetMetrics() RebalancerMetrics {
 // or Stop is called.
 func (r *Rebalancer) Run(ctx context.Context) error {
 	if r.balanceChecker == nil {
-		return fmt.Errorf("balance checker is required to run rebalancer")
+		return errors.New("balance checker is required to run rebalancer")
 	}
 
 	r.logger.Infof("rebalancer started with check interval %v", r.checkInterval)

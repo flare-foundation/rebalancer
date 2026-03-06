@@ -38,10 +38,10 @@ func New(
 	logger Logger,
 ) (*Manager, error) {
 	if privateKey == nil {
-		return nil, fmt.Errorf("txmng.New: private key is required")
+		return nil, errors.New("txmng.New: private key is required")
 	}
 	if client == nil {
-		return nil, fmt.Errorf("txmng.New: client is required")
+		return nil, errors.New("txmng.New: client is required")
 	}
 
 	// Apply defaults
@@ -149,7 +149,7 @@ func (m *Manager) processTransaction(runCtx context.Context, req txRequest) {
 	defer func() {
 		// Ensure result is always written, even if something panics
 		if recover() != nil {
-			req.result <- fmt.Errorf("txmng: processTransaction panicked")
+			req.result <- errors.New("txmng: processTransaction panicked")
 		}
 	}()
 
@@ -280,7 +280,7 @@ func (m *Manager) processTransaction(runCtx context.Context, req txRequest) {
 
 	// Max retries exhausted
 	m.logger.Errorf("txmng: max retries (%d) exhausted for nonce %d", m.maxRetries, nonce)
-	req.result <- fmt.Errorf("txmng: max retries exhausted")
+	req.result <- errors.New("txmng: max retries exhausted")
 }
 
 // buildAndSignTx builds and signs a DynamicFeeTx.

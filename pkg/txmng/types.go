@@ -2,7 +2,7 @@ package txmng
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"math/big"
 	"time"
 
@@ -50,10 +50,10 @@ type Config struct {
 // validate checks the configuration for validity.
 func (c *Config) validate() error {
 	if c.TxTimeout <= 0 {
-		return fmt.Errorf("tx_timeout must be positive")
+		return errors.New("tx_timeout must be positive")
 	}
 	if c.MaxRetries < 0 {
-		return fmt.Errorf("max_retries must be non-negative")
+		return errors.New("max_retries must be non-negative")
 	}
 	return nil
 }
