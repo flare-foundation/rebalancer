@@ -89,7 +89,8 @@ For advanced logger options, refer to the [go-flare-common logger documentation]
 
 ### Rate Limiting
 
-Each tracked address can have optional daily and weekly spending limits (in wei). When a limit would be exceeded, the top-up is skipped, a warning is logged, and a Prometheus counter is incremented.
+Each tracked address can have optional daily and weekly spending limits (in wei).
+When a limit would be exceeded, the top-up is skipped, a warning is logged, and a Prometheus counter is incremented.
 
 ```toml
 [[addresses]]
@@ -161,7 +162,8 @@ docker run -d \
 
 ### Health Checks
 
-The Docker container includes a health check that runs every 30 seconds. It verifies that the config file exists:
+The Docker container includes a health check that runs every 30 seconds.
+It verifies that the config file exists:
 
 ```bash
 docker ps

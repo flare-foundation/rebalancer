@@ -5,6 +5,7 @@ The rebalancer package provides automatic funding of tracked Ethereum addresses 
 ## Overview
 
 The Rebalancer is a process that:
+
 - Tracks a configurable list of Ethereum addresses
 - Periodically checks their balances
 - Automatically funds addresses when their balance falls below a minimum threshold
@@ -88,7 +89,9 @@ rb.AddAddress(addr, minBalance, topUpValue)
 
 ### Rate Limiting
 
-Each `TrackedAddress` can have optional `DailyLimit` and `WeeklyLimit` fields (in wei). When the projected spend would exceed a limit, the top-up is skipped and a warning is logged. An optional `LimitReporter` interface can be provided via `Config` for external reporting (e.g., Prometheus metrics).
+Each `TrackedAddress` can have optional `DailyLimit` and `WeeklyLimit` fields (in wei).
+When the projected spend would exceed a limit, the top-up is skipped and a warning is logged.
+An optional `LimitReporter` interface can be provided via `Config` for external reporting (e.g., Prometheus metrics).
 
 ```go
 ta := &rebalancer.TrackedAddress{
@@ -112,7 +115,8 @@ type BalanceChecker interface {
 }
 ```
 
-This is compatible with `*ethclient.Client` from go-ethereum, so you can pass it directly. You can also implement your own for testing or custom behavior.
+This is compatible with `*ethclient.Client` from go-ethereum, so you can pass it directly.
+You can also implement your own for testing or custom behavior.
 
 ### Sender
 
@@ -125,6 +129,7 @@ type Sender interface {
 ```
 
 The `Send` method is responsible for:
+
 - Creating and signing the transaction
 - Handling gas configuration
 - Retrying on failure
@@ -204,16 +209,19 @@ rb.Stop(stopCtx)
 ## Integration with Flare System
 
 The rebalancer tracks these addresses:
+
 - Proposer address
 - SigningPolicy address
 - Submit address
 - SubmitSignatures address
 
-These addresses are funded to ensure reliable operation of the system. Each address can have different minimum and top-up values based on its usage patterns.
+These addresses are funded to ensure reliable operation of the system.
+Each address can have different minimum and top-up values based on its usage patterns.
 
 ## Error Handling
 
 The rebalancer:
+
 - Logs all errors but continues operation
 - Returns errors for Add/Remove operations if validation fails
 - Continues checking other addresses if one fails
