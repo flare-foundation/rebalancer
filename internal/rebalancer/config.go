@@ -13,9 +13,11 @@ import (
 
 // TrackedAddressConfig is the TOML-friendly configuration for a tracked address.
 type TrackedAddressConfig struct {
-	Address    common.Address `toml:"address"`
-	MinBalance *big.Int       `toml:"min_balance_wei"`  // in wei; nil means use default
-	TopUpValue *big.Int       `toml:"top_up_value_wei"` // in wei; nil means use default
+	Address     common.Address `toml:"address"`
+	MinBalance  *big.Int       `toml:"min_balance_wei"`  // in wei; nil means use default
+	TopUpValue  *big.Int       `toml:"top_up_value_wei"` // in wei; nil means use default
+	DailyLimit  *big.Int       `toml:"daily_limit_wei"`  // in wei; nil means no limit
+	WeeklyLimit *big.Int       `toml:"weekly_limit_wei"` // in wei; nil means no limit
 }
 
 // UnmarshalTOML implements custom TOML unmarshaling for TrackedAddressConfig.
@@ -44,6 +46,22 @@ func (t *TrackedAddressConfig) UnmarshalTOML(data any) error {
 	} else if topUpValStr, ok := m["top_up_value_wei"].(string); ok && topUpValStr != "" {
 		t.TopUpValue = new(big.Int)
 		t.TopUpValue.SetString(topUpValStr, 10)
+	}
+
+	// Parse DailyLimit (int64 or string) and convert to *big.Int
+	if dl, ok := m["daily_limit_wei"].(int64); ok && dl != 0 {
+		t.DailyLimit = big.NewInt(dl)
+	} else if dlStr, ok := m["daily_limit_wei"].(string); ok && dlStr != "" {
+		t.DailyLimit = new(big.Int)
+		t.DailyLimit.SetString(dlStr, 10)
+	}
+
+	// Parse WeeklyLimit (int64 or string) and convert to *big.Int
+	if wl, ok := m["weekly_limit_wei"].(int64); ok && wl != 0 {
+		t.WeeklyLimit = big.NewInt(wl)
+	} else if wlStr, ok := m["weekly_limit_wei"].(string); ok && wlStr != "" {
+		t.WeeklyLimit = new(big.Int)
+		t.WeeklyLimit.SetString(wlStr, 10)
 	}
 
 	return nil

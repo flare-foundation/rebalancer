@@ -49,12 +49,23 @@ min_balance_wei = "10000000000000000000"
 # When triggered, the account will receive this amount
 # Can be specified as a number or string (for large values)
 top_up_value_wei = "100000000000000000000"
+# Maximum total amount (in wei) that can be sent to this address within a 24-hour rolling window (optional)
+# If not set or set to 0, no daily limit is applied
+# Can be specified as a number or string (for large values)
+# daily_limit_wei = "500000000000000000000"
+# Maximum total amount (in wei) that can be sent to this address within a 7-day rolling window (optional)
+# If not set or set to 0, no weekly limit is applied
+# Can be specified as a number or string (for large values)
+# weekly_limit_wei = "2000000000000000000000"
 
 [[addresses]]
 # Another example address with different thresholds
 address = "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd"
 min_balance_wei = "20000000000000000000"
 top_up_value_wei = "200000000000000000000"
+# Example with limits enabled (500 FLR daily, 2000 FLR weekly)
+daily_limit_wei = "500000000000000000000"
+weekly_limit_wei = "2000000000000000000000"
 
 # Note: The following environment variables can override TOML values:
 # - ETH_RPC_URL: Ethereum RPC endpoint (not set in TOML)

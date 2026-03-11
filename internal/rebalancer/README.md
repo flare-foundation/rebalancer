@@ -57,10 +57,12 @@ max_retries = 3
 address = "0x1234..."
 min_balance_wei = 20000000000000000000
 top_up_value_wei = 200000000000000000000
+daily_limit_wei = "500000000000000000000"    # optional: 500 FLR/day
+weekly_limit_wei = "2000000000000000000000"   # optional: 2000 FLR/week
 
 [[addresses]]
 address = "0x5678..."
-# Uses defaults (20 FLR min, 200 FLR top-up in wei)
+# Uses defaults (20 FLR min, 200 FLR top-up in wei, no limits)
 ```
 
 ### Environment Variables
@@ -84,6 +86,8 @@ address = "0x5678..."
 Address-specific defaults (if not specified in TOML):
 - `MinBalance`: 20 FLR (in wei: 20000000000000000000)
 - `TopUpValue`: 200 FLR (in wei: 200000000000000000000)
+- `DailyLimit`: no limit (nil)
+- `WeeklyLimit`: no limit (nil)
 
 ## Prometheus Metrics
 
@@ -91,8 +95,12 @@ The rebalancer exposes:
 
 - `rebalancer_sender_balance_wei` — Current balance of the sender address in wei
   - Updated every `CheckInterval`
+- `rebalancer_topup_limit_reached_total` — Counter of skipped top-ups due to rate limiting
+  - Labels: `address`, `limit_type` (`daily` or `weekly`)
 
-Example query: `rebalancer_sender_balance_wei / 1e18` (convert wei to FLR)
+Example queries:
+- `rebalancer_sender_balance_wei / 1e18` (convert wei to FLR)
+- `rate(rebalancer_topup_limit_reached_total[1h])` (rate-limited events per hour)
 
 ## Logging
 

@@ -42,15 +42,55 @@ type Config struct {
 	CheckInterval    time.Duration     `toml:"check_interval"`
 	WarningBalance   *big.Int          `toml:"warning_balance"`
 	InitialAddresses []*TrackedAddress `toml:"initial_addresses"`
+	LimitReporter    LimitReporter     `toml:"-"` // optional; nil = no Prometheus reporting
+}
+
+// LimitReporter is called when a topup is skipped due to rate limiting.
+type LimitReporter interface {
+	ReportLimitReached(addr common.Address, limitType string)
+}
+
+// FundingRecord records a single funding event with its amount and time.
+type FundingRecord struct {
+	Amount *big.Int
+	Time   time.Time
 }
 
 // TrackedAddress represents an address being monitored by the rebalancer.
 type TrackedAddress struct {
-	Address      common.Address `toml:"address"`
-	MinBalance   *big.Int       `toml:"min_balance"`
-	TopUpValue   *big.Int       `toml:"top_up_value"`
-	LastCheckAt  int64          `toml:"-"`
-	LastFundedAt int64          `toml:"-"`
+	Address        common.Address  `toml:"address"`
+	MinBalance     *big.Int        `toml:"min_balance"`
+	TopUpValue     *big.Int        `toml:"top_up_value"`
+	DailyLimit     *big.Int        `toml:"-"` // max wei per 24h; nil = no limit
+	WeeklyLimit    *big.Int        `toml:"-"` // max wei per 7d; nil = no limit
+	LastCheckAt    int64           `toml:"-"`
+	LastFundedAt   int64           `toml:"-"`
+	FundingHistory []FundingRecord `toml:"-"`
+}
+
+// AmountInWindow returns the total amount funded within the given duration from now.
+func (ta *TrackedAddress) AmountInWindow(window time.Duration, now time.Time) *big.Int {
+	cutoff := now.Add(-window)
+	total := big.NewInt(0)
+	for _, r := range ta.FundingHistory {
+		if !r.Time.Before(cutoff) {
+			total.Add(total, r.Amount)
+		}
+	}
+	return total
+}
+
+// PruneFundingHistory removes entries older than 7 days.
+func (ta *TrackedAddress) PruneFundingHistory(now time.Time) {
+	cutoff := now.Add(-7 * 24 * time.Hour)
+	n := 0
+	for _, r := range ta.FundingHistory {
+		if !r.Time.Before(cutoff) {
+			ta.FundingHistory[n] = r
+			n++
+		}
+	}
+	ta.FundingHistory = ta.FundingHistory[:n]
 }
 
 // BalanceCheckResult contains the result of a balance check for an address.

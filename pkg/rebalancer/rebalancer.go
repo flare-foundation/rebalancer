@@ -17,8 +17,10 @@ type Rebalancer struct {
 	balanceChecker BalanceChecker
 	sender         Sender
 	logger         Logger
+	limitReporter  LimitReporter
 	checkInterval  time.Duration
 	warningBalance *big.Int
+	nowFunc        func() time.Time
 
 	mu        sync.RWMutex
 	addresses map[common.Address]*TrackedAddress
@@ -46,8 +48,10 @@ func New(sender Sender, balanceChecker BalanceChecker, cfg Config, logger Logger
 		balanceChecker: balanceChecker,
 		sender:         sender,
 		logger:         logger,
+		limitReporter:  cfg.LimitReporter,
 		checkInterval:  cfg.CheckInterval,
 		warningBalance: cfg.WarningBalance,
+		nowFunc:        time.Now,
 		addresses:      make(map[common.Address]*TrackedAddress),
 		metrics: RebalancerMetrics{
 			TotalAmountSent: big.NewInt(0),
@@ -254,12 +258,23 @@ func (r *Rebalancer) checkAndRebalance(ctx context.Context) error {
 
 		if result.NeedsFunds {
 			amountToSend := new(big.Int).Sub(tracked.TopUpValue, result.Balance)
+			nowTime := r.nowFunc()
+
+			if r.exceedsLimit(tracked, amountToSend, nowTime) {
+				continue
+			}
 
 			if err := r.sender.Send(ctx, result.Address, amountToSend); err != nil {
 				r.logger.Errorf("failed to fund address %s with %s: %v",
 					result.Address.Hex(), amountToSend.String(), err)
 				continue
 			}
+
+			tracked.FundingHistory = append(tracked.FundingHistory, FundingRecord{
+				Amount: new(big.Int).Set(amountToSend),
+				Time:   nowTime,
+			})
+			tracked.PruneFundingHistory(nowTime)
 
 			tracked.LastFundedAt = now
 			r.metrics.TotalFundings++
@@ -307,4 +322,36 @@ func (r *Rebalancer) checkBalances(ctx context.Context, addresses []*TrackedAddr
 
 	wg.Wait()
 	return results
+}
+
+// exceedsLimit checks if funding the address would exceed its daily or weekly limit.
+// Returns true if the topup should be skipped. Caller must hold r.mu.
+func (r *Rebalancer) exceedsLimit(tracked *TrackedAddress, amount *big.Int, now time.Time) bool {
+	if tracked.DailyLimit != nil && tracked.DailyLimit.Sign() > 0 {
+		spent := tracked.AmountInWindow(24*time.Hour, now)
+		projected := new(big.Int).Add(spent, amount)
+		if projected.Cmp(tracked.DailyLimit) > 0 {
+			r.logger.Warnf("daily topup limit reached for %s (spent %s, want %s, limit %s)",
+				tracked.Address.Hex(), spent.String(), amount.String(), tracked.DailyLimit.String())
+			if r.limitReporter != nil {
+				r.limitReporter.ReportLimitReached(tracked.Address, "daily")
+			}
+			return true
+		}
+	}
+
+	if tracked.WeeklyLimit != nil && tracked.WeeklyLimit.Sign() > 0 {
+		spent := tracked.AmountInWindow(7*24*time.Hour, now)
+		projected := new(big.Int).Add(spent, amount)
+		if projected.Cmp(tracked.WeeklyLimit) > 0 {
+			r.logger.Warnf("weekly topup limit reached for %s (spent %s, want %s, limit %s)",
+				tracked.Address.Hex(), spent.String(), amount.String(), tracked.WeeklyLimit.String())
+			if r.limitReporter != nil {
+				r.limitReporter.ReportLimitReached(tracked.Address, "weekly")
+			}
+			return true
+		}
+	}
+
+	return false
 }

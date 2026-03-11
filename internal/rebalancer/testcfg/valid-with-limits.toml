@@ -1,0 +1,14 @@
+check_interval = "5m"
+warning_balance_flr = 1000
+
+[[addresses]]
+address = "0x1234567890123456789012345678901234567890"
+min_balance_wei = "10000000000000000000"
+top_up_value_wei = "100000000000000000000"
+daily_limit_wei = "500000000000000000000"
+weekly_limit_wei = "2000000000000000000000"
+
+[[addresses]]
+address = "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd"
+min_balance_wei = "20000000000000000000"
+top_up_value_wei = "200000000000000000000"

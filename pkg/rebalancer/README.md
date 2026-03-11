@@ -9,6 +9,7 @@ The Rebalancer is a process that:
 - Periodically checks their balances
 - Automatically funds addresses when their balance falls below a minimum threshold
 - Tops up balances to a configured value
+- Enforces optional daily and weekly spending limits per address
 - Logs all transactions for audit purposes
 
 ## Usage
@@ -73,6 +74,8 @@ rb.Stop(ctx)
 - **CheckInterval**: 5 minutes - How often to check balances
 - **MinBalance**: 20 FLR - Threshold below which an address is topped up
 - **TopUpValue**: 200 FLR - Target balance after top-up
+- **DailyLimit**: nil (no limit) - Maximum wei that can be sent to an address in a 24h rolling window
+- **WeeklyLimit**: nil (no limit) - Maximum wei that can be sent to an address in a 7-day rolling window
 
 ### Custom Balances
 
@@ -81,6 +84,20 @@ minBalance := rebalancer.FLRToWei(50)   // 50 FLR
 topUpValue := rebalancer.FLRToWei(500)  // 500 FLR
 
 rb.AddAddress(addr, minBalance, topUpValue)
+```
+
+### Rate Limiting
+
+Each `TrackedAddress` can have optional `DailyLimit` and `WeeklyLimit` fields (in wei). When the projected spend would exceed a limit, the top-up is skipped and a warning is logged. An optional `LimitReporter` interface can be provided via `Config` for external reporting (e.g., Prometheus metrics).
+
+```go
+ta := &rebalancer.TrackedAddress{
+    Address:     addr,
+    MinBalance:  rebalancer.FLRToWei(20),
+    TopUpValue:  rebalancer.FLRToWei(200),
+    DailyLimit:  rebalancer.FLRToWei(500),  // max 500 FLR per day
+    WeeklyLimit: rebalancer.FLRToWei(2000), // max 2000 FLR per week
+}
 ```
 
 ## Interfaces
@@ -112,6 +129,18 @@ The `Send` method is responsible for:
 - Handling gas configuration
 - Retrying on failure
 - Managing nonces
+
+### LimitReporter
+
+The optional `LimitReporter` interface is called when a top-up is skipped due to rate limiting:
+
+```go
+type LimitReporter interface {
+    ReportLimitReached(addr common.Address, limitType string)
+}
+```
+
+The `limitType` parameter is either `"daily"` or `"weekly"`. Pass an implementation via `Config.LimitReporter` to receive notifications (e.g., for Prometheus metrics).
 
 ## API
 
@@ -157,7 +186,8 @@ rb.Stop(stopCtx)
    - Compares balance against the configured minimum
 
 2. **Funding Decision**: For each address:
-   - If balance < minimum: Send `topUpValue - currentBalance` to fund it
+   - If balance < minimum and within daily/weekly limits: Send `topUpValue - currentBalance` to fund it
+   - If balance < minimum but a limit would be exceeded: Skip and log a warning
    - If balance >= minimum: Log and continue
 
 3. **Metrics**: The rebalancer tracks:

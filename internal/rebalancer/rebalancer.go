@@ -96,6 +96,8 @@ func New(cfg Config) (*Rebalancer, error) {
 			Address:      addr.Address,
 			MinBalance:   minBalWei,
 			TopUpValue:   topUpValWei,
+			DailyLimit:   addr.DailyLimit,
+			WeeklyLimit:  addr.WeeklyLimit,
 			LastCheckAt:  0,
 			LastFundedAt: 0,
 		}
@@ -113,11 +115,15 @@ func New(cfg Config) (*Rebalancer, error) {
 		checkInterval = rebalancer.DefaultCheckInterval
 	}
 
+	// Create metrics (needed as LimitReporter for rebalancer)
+	m := newMetrics()
+
 	// Create rebalancer.Rebalancer
 	rebalancerCfg := rebalancer.Config{
 		CheckInterval:    checkInterval,
 		WarningBalance:   warningBalWei,
 		InitialAddresses: trackedAddrs,
+		LimitReporter:    m,
 	}
 	rb, err := rebalancer.New(manager, client, rebalancerCfg, log)
 	if err != nil {
@@ -128,7 +134,7 @@ func New(cfg Config) (*Rebalancer, error) {
 		manager:       manager,
 		rb:            rb,
 		client:        client,
-		metrics:       newMetrics(),
+		metrics:       m,
 		checkInterval: checkInterval,
 	}, nil
 }

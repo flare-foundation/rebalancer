@@ -326,6 +326,170 @@ func TestFLRToWei(t *testing.T) {
 	}
 }
 
+// mockLimitReporter records limit-reached events for testing.
+type mockLimitReporter struct {
+	events []limitEvent
+}
+
+type limitEvent struct {
+	address string
+	kind    string
+}
+
+func (m *mockLimitReporter) ReportLimitReached(addr common.Address, limitType string) {
+	m.events = append(m.events, limitEvent{address: addr.Hex(), kind: limitType})
+}
+
+func TestDailyLimitSkipsTopup(t *testing.T) {
+	addr := common.HexToAddress("0x1")
+	senderAddr := common.HexToAddress("0xSender")
+	checker := newMockBalanceChecker()
+	// Balance below min triggers funding: topup = 200 - 5 = 195
+	checker.balances[addr] = big.NewInt(5)
+	checker.balances[senderAddr] = big.NewInt(100000)
+
+	sender := newMockSender()
+	reporter := &mockLimitReporter{}
+
+	now := time.Date(2026, 3, 11, 12, 0, 0, 0, time.UTC)
+
+	r, err := New(sender, checker, Config{
+		CheckInterval: 1 * time.Millisecond,
+		InitialAddresses: []*TrackedAddress{
+			{
+				Address:    addr,
+				MinBalance: big.NewInt(10),
+				TopUpValue: big.NewInt(200),
+				DailyLimit: big.NewInt(300), // limit: 300 per day
+			},
+		},
+		LimitReporter: reporter,
+	}, nil)
+	require.NoError(t, err)
+	r.nowFunc = func() time.Time { return now }
+
+	// First check: sends 195, within limit
+	require.NoError(t, r.checkAndRebalance(context.Background()))
+	require.Len(t, sender.sends, 1)
+	require.Empty(t, reporter.events)
+
+	// Second check: would send another 195, total 390 > 300 limit
+	require.NoError(t, r.checkAndRebalance(context.Background()))
+	require.Equal(t, int64(195), sender.sends[addr.Hex()]) // no second send
+	require.Len(t, reporter.events, 1)
+	require.Equal(t, "daily", reporter.events[0].kind)
+}
+
+func TestWeeklyLimitSkipsTopup(t *testing.T) {
+	addr := common.HexToAddress("0x1")
+	senderAddr := common.HexToAddress("0xSender")
+	checker := newMockBalanceChecker()
+	checker.balances[addr] = big.NewInt(5)
+	checker.balances[senderAddr] = big.NewInt(100000)
+
+	sender := newMockSender()
+	reporter := &mockLimitReporter{}
+
+	now := time.Date(2026, 3, 11, 12, 0, 0, 0, time.UTC)
+
+	r, err := New(sender, checker, Config{
+		CheckInterval: 1 * time.Millisecond,
+		InitialAddresses: []*TrackedAddress{
+			{
+				Address:     addr,
+				MinBalance:  big.NewInt(10),
+				TopUpValue:  big.NewInt(200),
+				WeeklyLimit: big.NewInt(300),
+			},
+		},
+		LimitReporter: reporter,
+	}, nil)
+	require.NoError(t, err)
+	r.nowFunc = func() time.Time { return now }
+
+	// First check: sends 195
+	require.NoError(t, r.checkAndRebalance(context.Background()))
+	require.Len(t, sender.sends, 1)
+
+	// Second check: 195 + 195 = 390 > 300
+	require.NoError(t, r.checkAndRebalance(context.Background()))
+	require.Equal(t, int64(195), sender.sends[addr.Hex()])
+	require.Len(t, reporter.events, 1)
+	require.Equal(t, "weekly", reporter.events[0].kind)
+}
+
+func TestZeroLimitsAllowUnlimitedTopups(t *testing.T) {
+	addr := common.HexToAddress("0x1")
+	senderAddr := common.HexToAddress("0xSender")
+	checker := newMockBalanceChecker()
+	checker.balances[addr] = big.NewInt(5)
+	checker.balances[senderAddr] = big.NewInt(100000)
+
+	sender := newMockSender()
+
+	r, err := New(sender, checker, Config{
+		CheckInterval: 1 * time.Millisecond,
+		InitialAddresses: []*TrackedAddress{
+			{
+				Address:    addr,
+				MinBalance: big.NewInt(10),
+				TopUpValue: big.NewInt(200),
+				// No limits set (nil)
+			},
+		},
+	}, nil)
+	require.NoError(t, err)
+
+	// Multiple topups should all succeed
+	for range 5 {
+		require.NoError(t, r.checkAndRebalance(context.Background()))
+	}
+	require.Equal(t, int64(195*5), sender.sends[addr.Hex()])
+}
+
+func TestDailyLimitResetsAfterWindow(t *testing.T) {
+	addr := common.HexToAddress("0x1")
+	senderAddr := common.HexToAddress("0xSender")
+	checker := newMockBalanceChecker()
+	checker.balances[addr] = big.NewInt(5)
+	checker.balances[senderAddr] = big.NewInt(100000)
+
+	sender := newMockSender()
+	reporter := &mockLimitReporter{}
+
+	now := time.Date(2026, 3, 11, 12, 0, 0, 0, time.UTC)
+
+	r, err := New(sender, checker, Config{
+		CheckInterval: 1 * time.Millisecond,
+		InitialAddresses: []*TrackedAddress{
+			{
+				Address:    addr,
+				MinBalance: big.NewInt(10),
+				TopUpValue: big.NewInt(200),
+				DailyLimit: big.NewInt(300),
+			},
+		},
+		LimitReporter: reporter,
+	}, nil)
+	require.NoError(t, err)
+	r.nowFunc = func() time.Time { return now }
+
+	// First topup succeeds (195)
+	require.NoError(t, r.checkAndRebalance(context.Background()))
+	require.Equal(t, int64(195), sender.sends[addr.Hex()])
+
+	// Second topup blocked (390 > 300)
+	require.NoError(t, r.checkAndRebalance(context.Background()))
+	require.Equal(t, int64(195), sender.sends[addr.Hex()])
+
+	// Advance 25 hours — daily window resets
+	now = now.Add(25 * time.Hour)
+	r.nowFunc = func() time.Time { return now }
+
+	require.NoError(t, r.checkAndRebalance(context.Background()))
+	require.Equal(t, int64(195*2), sender.sends[addr.Hex()])
+}
+
 func TestDefaultBalances(t *testing.T) {
 	minBal := DefaultMinBalanceWei()
 	topUpVal := DefaultTopUpValueWei()

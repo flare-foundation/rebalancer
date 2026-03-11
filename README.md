@@ -14,6 +14,7 @@
 
 Automated balance rebalancing service for Ethereum accounts on the Flare Network.
 Monitors account balances and automatically tops them up when they fall below configured thresholds.
+Supports configurable daily and weekly spending limits per address to prevent excessive top-ups.
 
 ## Table of Contents
 
@@ -85,6 +86,23 @@ format = "text"     # Log format: text or json
 ```
 
 For advanced logger options, refer to the [go-flare-common logger documentation](https://github.com/flare-foundation/go-flare-common/pkg/logger).
+
+### Rate Limiting
+
+Each tracked address can have optional daily and weekly spending limits (in wei). When a limit would be exceeded, the top-up is skipped, a warning is logged, and a Prometheus counter is incremented.
+
+```toml
+[[addresses]]
+address = "0x1234..."
+min_balance_wei = "10000000000000000000"
+top_up_value_wei = "100000000000000000000"
+daily_limit_wei = "500000000000000000000"    # 500 FLR per 24h rolling window
+weekly_limit_wei = "2000000000000000000000"   # 2000 FLR per 7d rolling window
+```
+
+- Limits use a rolling time window (last 24 hours / last 7 days)
+- If not set or set to 0, no limit is applied
+- When a limit is reached, the Prometheus metric `rebalancer_topup_limit_reached_total` is incremented (with `address` and `limit_type` labels)
 
 ## Docker Deployment
 

@@ -98,6 +98,55 @@ func TestTrackedAddressConfigUnmarshalTOML(t *testing.T) {
 			},
 		},
 		{
+			name: "parse limit int64 values",
+			data: map[string]any{
+				"address":          "0x5555555555555555555555555555555555555555",
+				"min_balance_wei":  int64(100),
+				"top_up_value_wei": int64(200),
+				"daily_limit_wei":  int64(500),
+				"weekly_limit_wei": int64(2000),
+			},
+			want: &TrackedAddressConfig{
+				Address:     common.HexToAddress("0x5555555555555555555555555555555555555555"),
+				MinBalance:  big.NewInt(100),
+				TopUpValue:  big.NewInt(200),
+				DailyLimit:  big.NewInt(500),
+				WeeklyLimit: big.NewInt(2000),
+			},
+		},
+		{
+			name: "parse limit string values",
+			data: map[string]any{
+				"address":          "0x6666666666666666666666666666666666666666",
+				"min_balance_wei":  "100",
+				"top_up_value_wei": "200",
+				"daily_limit_wei":  "500000000000000000000",
+				"weekly_limit_wei": "2000000000000000000000",
+			},
+			want: &TrackedAddressConfig{
+				Address:     common.HexToAddress("0x6666666666666666666666666666666666666666"),
+				MinBalance:  newBigInt("100"),
+				TopUpValue:  newBigInt("200"),
+				DailyLimit:  newBigInt("500000000000000000000"),
+				WeeklyLimit: newBigInt("2000000000000000000000"),
+			},
+		},
+		{
+			name: "missing limit fields are nil",
+			data: map[string]any{
+				"address":          "0x7777777777777777777777777777777777777777",
+				"min_balance_wei":  int64(100),
+				"top_up_value_wei": int64(200),
+			},
+			want: &TrackedAddressConfig{
+				Address:     common.HexToAddress("0x7777777777777777777777777777777777777777"),
+				MinBalance:  big.NewInt(100),
+				TopUpValue:  big.NewInt(200),
+				DailyLimit:  nil,
+				WeeklyLimit: nil,
+			},
+		},
+		{
 			name: "non-map data returns nil error",
 			data: "not a map",
 			want: &TrackedAddressConfig{
@@ -135,6 +184,22 @@ func TestTrackedAddressConfigUnmarshalTOML(t *testing.T) {
 			} else {
 				require.NotNil(t, cfg.TopUpValue)
 				require.Equal(t, tt.want.TopUpValue.String(), cfg.TopUpValue.String())
+			}
+
+			// Compare DailyLimit
+			if tt.want.DailyLimit == nil {
+				require.Nil(t, cfg.DailyLimit)
+			} else {
+				require.NotNil(t, cfg.DailyLimit)
+				require.Equal(t, tt.want.DailyLimit.String(), cfg.DailyLimit.String())
+			}
+
+			// Compare WeeklyLimit
+			if tt.want.WeeklyLimit == nil {
+				require.Nil(t, cfg.WeeklyLimit)
+			} else {
+				require.NotNil(t, cfg.WeeklyLimit)
+				require.Equal(t, tt.want.WeeklyLimit.String(), cfg.WeeklyLimit.String())
 			}
 		})
 	}
@@ -178,6 +243,28 @@ func TestLoad(t *testing.T) {
 						Address:    common.HexToAddress("0x1111111111111111111111111111111111111111"),
 						MinBalance: nil,
 						TopUpValue: nil,
+					},
+				},
+			},
+		},
+		{
+			name:    "valid config with limits",
+			cfgFile: "testcfg/valid-with-limits.toml",
+			want: &Config{
+				CheckInterval:     5 * 60 * 1000 * 1000 * 1000,
+				WarningBalanceFLR: 1000,
+				Addresses: []TrackedAddressConfig{
+					{
+						Address:     common.HexToAddress("0x1234567890123456789012345678901234567890"),
+						MinBalance:  newBigInt("10000000000000000000"),
+						TopUpValue:  newBigInt("100000000000000000000"),
+						DailyLimit:  newBigInt("500000000000000000000"),
+						WeeklyLimit: newBigInt("2000000000000000000000"),
+					},
+					{
+						Address:    common.HexToAddress("0xabcdefabcdefabcdefabcdefabcdefabcdefabcd"),
+						MinBalance: newBigInt("20000000000000000000"),
+						TopUpValue: newBigInt("200000000000000000000"),
 					},
 				},
 			},
@@ -242,6 +329,22 @@ func TestLoad(t *testing.T) {
 				} else {
 					require.NotNil(t, cfg.Addresses[i].TopUpValue)
 					require.Equal(t, wantAddr.TopUpValue.String(), cfg.Addresses[i].TopUpValue.String())
+				}
+
+				// Compare DailyLimit
+				if wantAddr.DailyLimit == nil {
+					require.Nil(t, cfg.Addresses[i].DailyLimit)
+				} else {
+					require.NotNil(t, cfg.Addresses[i].DailyLimit)
+					require.Equal(t, wantAddr.DailyLimit.String(), cfg.Addresses[i].DailyLimit.String())
+				}
+
+				// Compare WeeklyLimit
+				if wantAddr.WeeklyLimit == nil {
+					require.Nil(t, cfg.Addresses[i].WeeklyLimit)
+				} else {
+					require.NotNil(t, cfg.Addresses[i].WeeklyLimit)
+					require.Equal(t, wantAddr.WeeklyLimit.String(), cfg.Addresses[i].WeeklyLimit.String())
 				}
 			}
 		})
