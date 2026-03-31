@@ -1,5 +1,5 @@
 *
-!*.go
+!**/*.go
 !go.mod
 !go.sum
 !rebalancer.toml.example
