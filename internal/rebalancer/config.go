@@ -79,6 +79,9 @@ type Config struct {
 	WarningBalanceFLR int64                  `toml:"warning_balance_flr" envconfig:"REBALANCER_WARNING_BALANCE_FLR"`
 	Addresses         []TrackedAddressConfig `toml:"addresses"`
 
+	// metrics HTTP server address
+	MetricsAddr string `toml:"metrics_addr" envconfig:"REBALANCER_METRICS_ADDR"`
+
 	// txmng config
 	TxTimeout  time.Duration `toml:"tx_timeout" envconfig:"REBALANCER_TX_TIMEOUT"`
 	MaxRetries int           `toml:"max_retries" envconfig:"REBALANCER_MAX_RETRIES"`

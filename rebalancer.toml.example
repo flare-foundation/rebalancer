@@ -23,6 +23,11 @@ tx_timeout = "10s"
 # Default: not set, can be overridden with REBALANCER_MAX_RETRIES
 max_retries = 3
 
+# Address for the Prometheus metrics HTTP server
+# Metrics are exposed at /metrics on this address
+# Default: :8080, can be overridden with REBALANCER_METRICS_ADDR
+metrics_addr = ":8080"
+
 # Logger configuration
 # Configures the logging behavior of the rebalancer
 # For detailed options, see: github.com/flare-foundation/go-flare-common/pkg/logger
@@ -74,5 +79,6 @@ weekly_limit_wei = "2000000000000000000000"
 # - REBALANCER_WARNING_BALANCE_FLR: Override warning_balance_flr
 # - REBALANCER_TX_TIMEOUT: Override tx_timeout
 # - REBALANCER_MAX_RETRIES: Override max_retries
+# - REBALANCER_METRICS_ADDR: Override metrics_addr
 #
 # Logger configuration is loaded from the [logger] section and applied at startup.

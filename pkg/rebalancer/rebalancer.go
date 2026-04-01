@@ -278,6 +278,7 @@ func (r *Rebalancer) checkAndRebalance(ctx context.Context) error {
 
 			tracked.LastFundedAt = now
 			r.metrics.TotalFundings++
+			r.metrics.LastFundTime = now
 			r.metrics.TotalAmountSent = new(big.Int).Add(r.metrics.TotalAmountSent, amountToSend)
 
 			r.logger.Infof("funded address %s with %s, new balance will be %s",

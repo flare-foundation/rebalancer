@@ -74,6 +74,7 @@ Optional overrides (can override TOML values):
 - `REBALANCER_WARNING_BALANCE_FLR`: e.g., "1000"
 - `REBALANCER_TX_TIMEOUT`: e.g., "10s"
 - `REBALANCER_MAX_RETRIES`: e.g., "3"
+- `REBALANCER_METRICS_ADDR`: e.g., ":8080", ":9090"
 
 ### Logger Configuration
 
@@ -156,6 +157,7 @@ docker run -d \
   --name rebalancer \
   -e ETH_RPC_URL="https://your-ethereum-rpc.com" \
   -e REBALANCER_PRIVATE_KEY="your_private_key" \
+  -p 8080:8080 \
   -v $(pwd)/rebalancer.toml:/app/rebalancer.toml:ro \
   rebalancer:latest
 ```
@@ -172,10 +174,31 @@ docker ps
 
 ### Metrics
 
-The service exposes Prometheus metrics on port `8080`. Access them:
+The service exposes Prometheus metrics at `/metrics` on port `8080` by default.
 
 ```bash
-docker exec rebalancer curl http://localhost:8080/metrics
+curl http://localhost:8080/metrics
+```
+
+| Metric | Type | Description |
+|---|---|---|
+| `rebalancer_sender_balance_wei` | Gauge | Current balance of the rebalancer's signing address in wei |
+| `rebalancer_topup_limit_reached_total` | Counter | Top-ups skipped due to rate limits, labeled by `address` and `limit_type` (`daily` / `weekly`) |
+| `rebalancer_checks` | Gauge | Cumulative number of balance check cycles completed |
+| `rebalancer_fundings` | Gauge | Cumulative number of successful top-up transactions sent |
+| `rebalancer_amount_sent_wei` | Gauge | Cumulative amount sent in wei across all top-up transactions |
+| `rebalancer_last_check_timestamp_seconds` | Gauge | Unix timestamp of the most recent balance check cycle |
+| `rebalancer_last_funding_timestamp_seconds` | Gauge | Unix timestamp of the most recent top-up transaction |
+
+To change the listen address, set `metrics_addr` in `rebalancer.toml` or use the `REBALANCER_METRICS_ADDR` environment variable.
+
+**Prometheus scrape config:**
+
+```yaml
+scrape_configs:
+  - job_name: rebalancer
+    static_configs:
+      - targets: ['localhost:8080']
 ```
 
 ### Logs

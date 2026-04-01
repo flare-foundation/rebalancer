@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
@@ -15,8 +16,11 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
 	"github.com/flare-network/rebalancer/pkg/rebalancer"
 	"github.com/flare-network/rebalancer/pkg/txmng"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/sync/errgroup"
 )
+
+const defaultMetricsAddr = ":8080"
 
 // Rebalancer wires together pkg/txmng and pkg/rebalancer with real dependencies.
 type Rebalancer struct {
@@ -25,6 +29,7 @@ type Rebalancer struct {
 	client        *ethclient.Client
 	metrics       *metrics
 	checkInterval time.Duration
+	metricsAddr   string
 }
 
 // New creates a new Rebalancer, wiring ethclient, txmng, and rebalancer packages.
@@ -130,12 +135,18 @@ func New(cfg Config) (*Rebalancer, error) {
 		return nil, fmt.Errorf("failed to create rebalancer: %w", err)
 	}
 
+	metricsAddr := cfg.MetricsAddr
+	if metricsAddr == "" {
+		metricsAddr = defaultMetricsAddr
+	}
+
 	return &Rebalancer{
 		manager:       manager,
 		rb:            rb,
 		client:        client,
 		metrics:       m,
 		checkInterval: checkInterval,
+		metricsAddr:   metricsAddr,
 	}, nil
 }
 
@@ -143,6 +154,11 @@ func New(cfg Config) (*Rebalancer, error) {
 // This function is blocking and should be run in a goroutine.
 func (r *Rebalancer) Run(ctx context.Context) error {
 	g, ctx := errgroup.WithContext(ctx)
+
+	// Serve Prometheus metrics
+	g.Go(func() error {
+		return r.serveMetrics(ctx)
+	})
 
 	// Run transaction manager (handles queued transactions)
 	g.Go(func() error {
@@ -161,6 +177,29 @@ func (r *Rebalancer) Run(ctx context.Context) error {
 	})
 
 	return g.Wait()
+}
+
+// serveMetrics starts an HTTP server exposing Prometheus metrics on /metrics.
+func (r *Rebalancer) serveMetrics(ctx context.Context) error {
+	mux := http.NewServeMux()
+	mux.Handle("/metrics", promhttp.Handler())
+	srv := &http.Server{
+		Addr:    r.metricsAddr,
+		Handler: mux,
+	}
+
+	go func() {
+		<-ctx.Done()
+		if err := srv.Shutdown(context.Background()); err != nil {
+			logger.Warnf("metrics server shutdown error: %v", err)
+		}
+	}()
+
+	logger.Infof("Serving metrics on %s/metrics", r.metricsAddr)
+	if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
+		return fmt.Errorf("metrics server: %w", err)
+	}
+	return nil
 }
 
 // monitorSenderBalance periodically updates the sender's balance metric.
@@ -184,6 +223,8 @@ func (r *Rebalancer) monitorSenderBalance(ctx context.Context) {
 			fBal := new(big.Float).SetInt(bal)
 			fBalVal, _ := fBal.Float64()
 			r.metrics.senderBalance.Set(fBalVal)
+
+			r.metrics.updateFromRebalancerMetrics(r.rb.GetMetrics())
 		}
 	}
 }

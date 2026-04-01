@@ -3,9 +3,13 @@
 package rebalancer_test
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"math/big"
+	"net/http"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -21,11 +25,44 @@ const (
 	rpcURL            = "https://coston2-api.flare.network/ext/C/rpc"
 	rebalancerPrivKey = "0xa392eb3a8bfa1dff1c1eff81785b6e126b248d6eca3fc502620aeac10114d681"
 	rebalancerAddrStr = "0x36352928E1C66a280cb94490B963d07F23706482"
+	metricsURL        = "http://localhost:19090/metrics"
 )
 
 func flrToWei(flr int64) *big.Int {
 	e18 := new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)
 	return new(big.Int).Mul(big.NewInt(flr), e18)
+}
+
+// scrapeMetricValue fetches the Prometheus metrics endpoint and returns the value
+// of the named metric. Only metrics with no labels are supported.
+func scrapeMetricValue(t *testing.T, name string) (float64, bool) {
+	t.Helper()
+
+	resp, err := http.Get(metricsURL) //nolint:noctx // e2e test helper
+	if err != nil {
+		return 0, false
+	}
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			t.Logf("close metrics response body: %v", err)
+		}
+	}()
+
+	prefix := name + " "
+	scanner := bufio.NewScanner(resp.Body)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, prefix) {
+			parts := strings.Fields(line)
+			if len(parts) >= 2 {
+				val, err := strconv.ParseFloat(parts[1], 64)
+				if err == nil {
+					return val, true
+				}
+			}
+		}
+	}
+	return 0, false
 }
 
 func TestE2ERebalancer(t *testing.T) {
@@ -58,6 +95,7 @@ func TestE2ERebalancer(t *testing.T) {
 		CheckInterval: 15 * time.Second,
 		TxTimeout:     10 * time.Second,
 		MaxRetries:    3,
+		MetricsAddr:   ":19090",
 		Addresses: []rebalancer.TrackedAddressConfig{
 			{
 				Address:    trackedAddr,
@@ -88,6 +126,18 @@ func TestE2ERebalancer(t *testing.T) {
 		_ = drainManager.Run(drainCtx)
 	}()
 
+	// Wait for metrics server to be ready
+	t.Log("Waiting for metrics server to start...")
+	require.Eventually(t, func() bool {
+		resp, err := http.Get(metricsURL) //nolint:noctx // e2e test helper
+		if err != nil {
+			return false
+		}
+		_ = resp.Body.Close()
+		return resp.StatusCode == http.StatusOK
+	}, 10*time.Second, time.Second, "metrics server did not start within 10 seconds")
+	t.Log("Metrics server up ✓")
+
 	topUpWei := flrToWei(2)
 
 	// Assert 1: tracked address receives initial top-up
@@ -103,6 +153,35 @@ func TestE2ERebalancer(t *testing.T) {
 	}, 2*time.Minute, 10*time.Second, "tracked address not funded within 2 minutes")
 	t.Log("Initial top-up confirmed ✓")
 
+	// Assert 2: Prometheus metrics reflect the initial top-up
+	t.Log("Waiting for Prometheus metrics to reflect initial top-up...")
+	require.Eventually(t, func() bool {
+		val, ok := scrapeMetricValue(t, "rebalancer_fundings")
+		return ok && val >= 1
+	}, 30*time.Second, 3*time.Second, "rebalancer_fundings did not reach 1")
+
+	val, ok := scrapeMetricValue(t, "rebalancer_checks")
+	require.True(t, ok, "rebalancer_checks metric not found")
+	require.GreaterOrEqual(t, val, 1.0, "expected at least 1 check cycle")
+
+	val, ok = scrapeMetricValue(t, "rebalancer_sender_balance_wei")
+	require.True(t, ok, "rebalancer_sender_balance_wei metric not found")
+	require.Greater(t, val, 0.0, "expected positive sender balance")
+
+	val, ok = scrapeMetricValue(t, "rebalancer_amount_sent_wei")
+	require.True(t, ok, "rebalancer_amount_sent_wei metric not found")
+	require.Greater(t, val, 0.0, "expected positive amount sent")
+
+	val, ok = scrapeMetricValue(t, "rebalancer_last_check_timestamp_seconds")
+	require.True(t, ok, "rebalancer_last_check_timestamp_seconds metric not found")
+	require.Greater(t, val, 0.0, "expected non-zero last check timestamp")
+
+	val, ok = scrapeMetricValue(t, "rebalancer_last_funding_timestamp_seconds")
+	require.True(t, ok, "rebalancer_last_funding_timestamp_seconds metric not found")
+	require.Greater(t, val, 0.0, "expected non-zero last funding timestamp")
+
+	t.Log("Prometheus metrics after initial top-up ✓")
+
 	// Drain: send 1.5 C2FLR from tracked address back to rebalancer address
 	drainAmount := new(big.Int)
 	drainAmount.SetString("1500000000000000000", 10)
@@ -110,7 +189,7 @@ func TestE2ERebalancer(t *testing.T) {
 	require.NoError(t, drainManager.Send(ctx, rebalancerAddr, drainAmount))
 	t.Log("Drain tx confirmed ✓")
 
-	// Assert 2: rebalancer detects low balance and tops up again
+	// Assert 3: rebalancer detects low balance and tops up again
 	t.Log("Waiting for re-top-up to 2 C2FLR...")
 	require.Eventually(t, func() bool {
 		bal, err := ethClient.BalanceAt(ctx, trackedAddr, nil)
@@ -122,6 +201,14 @@ func TestE2ERebalancer(t *testing.T) {
 		return bal.Cmp(topUpWei) >= 0
 	}, 2*time.Minute, 10*time.Second, "tracked address not re-funded within 2 minutes")
 	t.Log("Re-top-up confirmed ✓")
+
+	// Assert 4: Prometheus metrics reflect the second top-up
+	t.Log("Waiting for Prometheus metrics to reflect re-top-up...")
+	require.Eventually(t, func() bool {
+		val, ok := scrapeMetricValue(t, "rebalancer_fundings")
+		return ok && val >= 2
+	}, 30*time.Second, 3*time.Second, "rebalancer_fundings did not reach 2 after re-top-up")
+	t.Log("Prometheus metrics after re-top-up ✓")
 
 	// Stop rebalancer
 	rbCancel()
