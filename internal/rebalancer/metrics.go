@@ -66,8 +66,8 @@ func (m *metrics) ReportLimitReached(addr common.Address, limitType string) {
 	m.limitsReached.WithLabelValues(addr.Hex(), limitType).Inc()
 }
 
-// updateFromRebalancerMetrics syncs Prometheus gauges from the latest RebalancerMetrics snapshot.
-func (m *metrics) updateFromRebalancerMetrics(rm rebalancer.RebalancerMetrics) {
+// Push syncs Prometheus gauges from the latest RebalancerMetrics snapshot.
+func (m *metrics) Push(rm rebalancer.RebalancerMetrics) {
 	m.checks.Set(float64(rm.TotalChecks))
 	m.fundings.Set(float64(rm.TotalFundings))
 	if rm.TotalAmountSent != nil {

@@ -42,12 +42,18 @@ type Config struct {
 	CheckInterval    time.Duration     `toml:"check_interval"`
 	WarningBalance   *big.Int          `toml:"warning_balance"`
 	InitialAddresses []*TrackedAddress `toml:"initial_addresses"`
-	LimitReporter    LimitReporter     `toml:"-"` // optional; nil = no Prometheus reporting
+	LimitReporter    LimitReporter     `toml:"-"` // optional; nil = no reporting
+	MetricPusher     MetricPusher      `toml:"-"` // optional; nil = no metric pushing
 }
 
 // LimitReporter is called when a topup is skipped due to rate limiting.
 type LimitReporter interface {
 	ReportLimitReached(addr common.Address, limitType string)
+}
+
+// MetricPusher is called to push the latest rebalancer metrics to an external sink.
+type MetricPusher interface {
+	Push(RebalancerMetrics)
 }
 
 // FundingRecord records a single funding event with its amount and time.

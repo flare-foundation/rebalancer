@@ -18,6 +18,7 @@ type Rebalancer struct {
 	sender         Sender
 	logger         Logger
 	limitReporter  LimitReporter
+	metricPusher   MetricPusher
 	checkInterval  time.Duration
 	warningBalance *big.Int
 	nowFunc        func() time.Time
@@ -49,6 +50,7 @@ func New(sender Sender, balanceChecker BalanceChecker, cfg Config, logger Logger
 		sender:         sender,
 		logger:         logger,
 		limitReporter:  cfg.LimitReporter,
+		metricPusher:   cfg.MetricPusher,
 		checkInterval:  cfg.CheckInterval,
 		warningBalance: cfg.WarningBalance,
 		nowFunc:        time.Now,
@@ -287,6 +289,16 @@ func (r *Rebalancer) checkAndRebalance(ctx context.Context) error {
 			r.logger.Debugf("address %s has sufficient balance %s (min %s)",
 				result.Address.Hex(), result.Balance.String(), tracked.MinBalance.String())
 		}
+	}
+
+	if r.metricPusher != nil {
+		r.metricPusher.Push(RebalancerMetrics{
+			TotalChecks:     r.metrics.TotalChecks,
+			TotalFundings:   r.metrics.TotalFundings,
+			TotalAmountSent: new(big.Int).Set(r.metrics.TotalAmountSent),
+			LastCheckTime:   r.metrics.LastCheckTime,
+			LastFundTime:    r.metrics.LastFundTime,
+		})
 	}
 
 	return nil

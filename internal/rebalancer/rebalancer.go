@@ -129,6 +129,7 @@ func New(cfg Config) (*Rebalancer, error) {
 		WarningBalance:   warningBalWei,
 		InitialAddresses: trackedAddrs,
 		LimitReporter:    m,
+		MetricPusher:     m,
 	}
 	rb, err := rebalancer.New(manager, client, rebalancerCfg, log)
 	if err != nil {
@@ -223,8 +224,6 @@ func (r *Rebalancer) monitorSenderBalance(ctx context.Context) {
 			fBal := new(big.Float).SetInt(bal)
 			fBalVal, _ := fBal.Float64()
 			r.metrics.senderBalance.Set(fBalVal)
-
-			r.metrics.updateFromRebalancerMetrics(r.rb.GetMetrics())
 		}
 	}
 }
