@@ -1,0 +1,30 @@
+default:
+  tags:
+    - flarenetwork-md
+
+stages:
+  - test
+  - release-images
+  - report
+
+include:
+  - template: Jobs/SAST.latest.gitlab-ci.yml
+  - template: Jobs/Secret-Detection.latest.gitlab-ci.yml
+  - component: gitlab.com/flarenetwork/ci-components-private/ai-code-review@2
+    inputs:
+      rules_condition: $CI_MERGE_REQUEST_IID != null && $GITLAB_USER_NAME != "SealBot" && $CI_MERGE_REQUEST_EVENT_TYPE != "merge_train"
+      rules_when: always
+      use_cursor_cli: false
+      tags: ["flarenetwork-md"]
+  - component: gitlab.com/flarenetwork/ci-components-private/lgtm@2
+  - component: gitlab.com/flarenetwork/infra-public/ci-components/dependency-track@~latest
+
+sast:
+  needs: []
+  artifacts:
+      expire_in: 3 days
+
+secret_detection:
+  needs: []
+  artifacts:
+      expire_in: 3 days
