@@ -16,6 +16,11 @@ include:
       rules_when: always
       use_cursor_cli: false
       tags: ["flarenetwork-md"]
+  - component: gitlab.com/flarenetwork/ci-components-private/release-image@2
+    inputs:
+        image_name: rebalancer
+        image_tag_source: commit_tag
+        build_tags: ['flarenetwork-md']
   - component: gitlab.com/flarenetwork/ci-components-private/lgtm@2
   - component: gitlab.com/flarenetwork/infra-public/ci-components/dependency-track@~latest
 
