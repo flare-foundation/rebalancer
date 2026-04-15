@@ -6,6 +6,7 @@ stages:
   - test
   - report
   - sbom
+  - release-images
 
 include:
   - template: Jobs/SAST.latest.gitlab-ci.yml
