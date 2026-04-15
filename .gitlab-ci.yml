@@ -4,8 +4,8 @@ default:
 
 stages:
   - test
-  - release-images
   - report
+  - sbom
 
 include:
   - template: Jobs/SAST.latest.gitlab-ci.yml
