@@ -282,15 +282,17 @@ func (r *Rebalancer) checkAndRebalance(ctx context.Context) error {
 				continue
 			}
 
+			sentAt := r.nowFunc()
 			tracked.FundingHistory = append(tracked.FundingHistory, FundingRecord{
 				Amount: new(big.Int).Set(amountToSend),
-				Time:   nowTime,
+				Time:   sentAt,
 			})
-			tracked.PruneFundingHistory(nowTime)
+			tracked.PruneFundingHistory(sentAt)
 
-			tracked.LastFundedAt = now
+			sentUnix := sentAt.Unix()
+			tracked.LastFundedAt = sentUnix
 			r.metrics.TotalFundings++
-			r.metrics.LastFundTime = now
+			r.metrics.LastFundTime = sentUnix
 			r.metrics.TotalAmountSent = new(big.Int).Add(r.metrics.TotalAmountSent, amountToSend)
 
 			r.logger.Infof("funded address %s with %s wei (target balance top_up_value=%s)",

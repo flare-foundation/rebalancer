@@ -11,13 +11,19 @@ import (
 
 // metrics holds Prometheus metrics for the internal rebalancer.
 type metrics struct {
-	senderBalance   prometheus.Gauge
-	limitsReached   *prometheus.CounterVec
-	checks          prometheus.Gauge
-	fundings        prometheus.Gauge
-	amountSentWei   prometheus.Gauge
-	lastCheckTime   prometheus.Gauge
-	lastFundingTime prometheus.Gauge
+	senderBalance         prometheus.Gauge
+	limitsReached         *prometheus.CounterVec
+	checks                prometheus.Gauge
+	fundings              prometheus.Gauge
+	amountSentWei         prometheus.Gauge
+	lastCheckTime         prometheus.Gauge
+	lastFundingTime       prometheus.Gauge
+	successfulTopupsTotal prometheus.Counter
+	topupAmountWeiTotal   prometheus.Counter
+
+	pushInitialized bool
+	prevFundings    uint64
+	prevAmountWei   *big.Int
 }
 
 // newMetrics creates and registers Prometheus metrics for the rebalancer.
@@ -58,6 +64,16 @@ func newMetrics() *metrics {
 			Name:      "last_funding_timestamp_seconds",
 			Help:      "Unix timestamp of the most recent top-up transaction",
 		}),
+		successfulTopupsTotal: promauto.NewCounter(prometheus.CounterOpts{
+			Namespace: "rebalancer",
+			Name:      "successful_topups_total",
+			Help:      "Successful top-up transactions (increments once per completed send)",
+		}),
+		topupAmountWeiTotal: promauto.NewCounter(prometheus.CounterOpts{
+			Namespace: "rebalancer",
+			Name:      "topup_amount_wei_total",
+			Help:      "Sum of wei sent in successful top-ups (increments by each top-up amount)",
+		}),
 	}
 }
 
@@ -76,4 +92,42 @@ func (m *metrics) Push(rm rebalancer.RebalancerMetrics) {
 	}
 	m.lastCheckTime.Set(float64(rm.LastCheckTime))
 	m.lastFundingTime.Set(float64(rm.LastFundTime))
+
+	m.applyTopupCounterDeltas(rm)
+}
+
+func (m *metrics) applyTopupCounterDeltas(rm rebalancer.RebalancerMetrics) {
+	var totalAmt *big.Int
+	if rm.TotalAmountSent != nil {
+		totalAmt = new(big.Int).Set(rm.TotalAmountSent)
+	} else {
+		totalAmt = big.NewInt(0)
+	}
+
+	if m.pushInitialized && (rm.TotalFundings < m.prevFundings ||
+		(m.prevAmountWei != nil && totalAmt.Cmp(m.prevAmountWei) < 0)) {
+		m.pushInitialized = false
+		m.prevAmountWei = nil
+	}
+
+	if !m.pushInitialized {
+		m.prevFundings = rm.TotalFundings
+		m.prevAmountWei = new(big.Int).Set(totalAmt)
+		m.pushInitialized = true
+		return
+	}
+
+	df := rm.TotalFundings - m.prevFundings
+	if df > 0 {
+		m.successfulTopupsTotal.Add(float64(df))
+	}
+
+	delta := new(big.Int).Sub(totalAmt, m.prevAmountWei)
+	if delta.Sign() > 0 {
+		f, _ := new(big.Float).SetInt(delta).Float64()
+		m.topupAmountWeiTotal.Add(f)
+	}
+
+	m.prevFundings = rm.TotalFundings
+	m.prevAmountWei.Set(totalAmt)
 }

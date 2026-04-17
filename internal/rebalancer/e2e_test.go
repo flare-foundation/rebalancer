@@ -172,6 +172,14 @@ func TestE2ERebalancer(t *testing.T) {
 	require.True(t, ok, "rebalancer_amount_sent_wei metric not found")
 	require.Greater(t, val, 0.0, "expected positive amount sent")
 
+	val, ok = scrapeMetricValue(t, "rebalancer_successful_topups_total")
+	require.True(t, ok, "rebalancer_successful_topups_total metric not found")
+	require.GreaterOrEqual(t, val, 1.0, "expected successful top-ups counter")
+
+	val, ok = scrapeMetricValue(t, "rebalancer_topup_amount_wei_total")
+	require.True(t, ok, "rebalancer_topup_amount_wei_total metric not found")
+	require.Greater(t, val, 0.0, "expected positive topup_amount_wei_total counter")
+
 	val, ok = scrapeMetricValue(t, "rebalancer_last_check_timestamp_seconds")
 	require.True(t, ok, "rebalancer_last_check_timestamp_seconds metric not found")
 	require.Greater(t, val, 0.0, "expected non-zero last check timestamp")
