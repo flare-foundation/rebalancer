@@ -4,22 +4,36 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/flare-network/rebalancer/pkg/rebalancer"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
+// weiToNativeTokenFloat converts wei to a token amount (÷ 10^18) for Prometheus.
+// Prometheus only has float64; stuffing raw wei into a float rounds badly, so divide first.
+func weiToNativeTokenFloat(wei *big.Int) float64 {
+	if wei == nil || wei.Sign() == 0 {
+		return 0
+	}
+	q := new(big.Float).Quo(new(big.Float).SetInt(wei), big.NewFloat(params.Ether))
+	f, _ := q.Float64()
+	return f
+}
+
 // metrics holds Prometheus metrics for the internal rebalancer.
 type metrics struct {
-	senderBalance         prometheus.Gauge
-	limitsReached         *prometheus.CounterVec
-	checks                prometheus.Gauge
-	fundings              prometheus.Gauge
-	amountSentWei         prometheus.Gauge
-	lastCheckTime         prometheus.Gauge
-	lastFundingTime       prometheus.Gauge
-	successfulTopupsTotal prometheus.Counter
-	topupAmountWeiTotal   prometheus.Counter
+	senderBalance   prometheus.Gauge
+	limitsReached   *prometheus.CounterVec
+	checks          prometheus.Gauge
+	fundings        prometheus.Gauge
+	amountSentNative prometheus.Gauge
+	lastCheckTime   prometheus.Gauge
+	lastFundingTime prometheus.Gauge
+
+	// Top-up counters: increments computed in applyTopupCounterDeltas from Push() snapshots.
+	successfulTopupsTotal  prometheus.Counter
+	topupAmountNativeTotal prometheus.Counter
 
 	pushInitialized bool
 	prevFundings    uint64
@@ -31,8 +45,8 @@ func newMetrics() *metrics {
 	return &metrics{
 		senderBalance: promauto.NewGauge(prometheus.GaugeOpts{
 			Namespace: "rebalancer",
-			Name:      "sender_balance_wei",
-			Help:      "Current balance of the rebalancer sender address in wei",
+			Name:      "sender_balance_native",
+			Help:      "Sender balance in native token units (not wei)",
 		}),
 		limitsReached: promauto.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "rebalancer",
@@ -49,10 +63,10 @@ func newMetrics() *metrics {
 			Name:      "fundings",
 			Help:      "Cumulative number of successful top-up transactions sent",
 		}),
-		amountSentWei: promauto.NewGauge(prometheus.GaugeOpts{
+		amountSentNative: promauto.NewGauge(prometheus.GaugeOpts{
 			Namespace: "rebalancer",
-			Name:      "amount_sent_wei",
-			Help:      "Cumulative amount sent in wei across all top-up transactions",
+			Name:      "amount_sent_native",
+			Help:      "Total amount sent in native token units (not wei)",
 		}),
 		lastCheckTime: promauto.NewGauge(prometheus.GaugeOpts{
 			Namespace: "rebalancer",
@@ -69,10 +83,10 @@ func newMetrics() *metrics {
 			Name:      "successful_topups_total",
 			Help:      "Successful top-up transactions (increments once per completed send)",
 		}),
-		topupAmountWeiTotal: promauto.NewCounter(prometheus.CounterOpts{
+		topupAmountNativeTotal: promauto.NewCounter(prometheus.CounterOpts{
 			Namespace: "rebalancer",
-			Name:      "topup_amount_wei_total",
-			Help:      "Sum of wei sent in successful top-ups (increments by each top-up amount)",
+			Name:      "topup_amount_native_total",
+			Help:      "Cumulative top-up volume in native token units (not wei)",
 		}),
 	}
 }
@@ -82,13 +96,12 @@ func (m *metrics) ReportLimitReached(addr common.Address, limitType string) {
 	m.limitsReached.WithLabelValues(addr.Hex(), limitType).Inc()
 }
 
-// Push syncs Prometheus gauges from the latest RebalancerMetrics snapshot.
+// Push updates gauges and top-up counter deltas from the latest metrics snapshot.
 func (m *metrics) Push(rm rebalancer.RebalancerMetrics) {
 	m.checks.Set(float64(rm.TotalChecks))
 	m.fundings.Set(float64(rm.TotalFundings))
 	if rm.TotalAmountSent != nil {
-		f, _ := new(big.Float).SetInt(rm.TotalAmountSent).Float64()
-		m.amountSentWei.Set(f)
+		m.amountSentNative.Set(weiToNativeTokenFloat(rm.TotalAmountSent))
 	}
 	m.lastCheckTime.Set(float64(rm.LastCheckTime))
 	m.lastFundingTime.Set(float64(rm.LastFundTime))
@@ -103,6 +116,8 @@ func (m *metrics) applyTopupCounterDeltas(rm rebalancer.RebalancerMetrics) {
 	} else {
 		totalAmt = big.NewInt(0)
 	}
+
+	// Process restarted or state reset: treat the next Push as a fresh baseline.
 	if m.pushInitialized && (rm.TotalFundings < m.prevFundings ||
 		(m.prevAmountWei != nil && totalAmt.Cmp(m.prevAmountWei) < 0)) {
 		m.pushInitialized = false
@@ -110,14 +125,12 @@ func (m *metrics) applyTopupCounterDeltas(rm rebalancer.RebalancerMetrics) {
 	}
 
 	if !m.pushInitialized {
-		// Baseline-only would miss top-ups that completed before this first snapshot
-		// (e.g. first check cycle funded). Seed counters from current totals once.
+		// First snapshot after start: copy current totals into counters so earlier top-ups still count.
 		if rm.TotalFundings > 0 {
 			m.successfulTopupsTotal.Add(float64(rm.TotalFundings))
 		}
 		if totalAmt.Sign() > 0 {
-			f, _ := new(big.Float).SetInt(totalAmt).Float64()
-			m.topupAmountWeiTotal.Add(f)
+			m.topupAmountNativeTotal.Add(weiToNativeTokenFloat(totalAmt))
 		}
 		m.prevFundings = rm.TotalFundings
 		m.prevAmountWei = new(big.Int).Set(totalAmt)
@@ -132,8 +145,7 @@ func (m *metrics) applyTopupCounterDeltas(rm rebalancer.RebalancerMetrics) {
 
 	delta := new(big.Int).Sub(totalAmt, m.prevAmountWei)
 	if delta.Sign() > 0 {
-		f, _ := new(big.Float).SetInt(delta).Float64()
-		m.topupAmountWeiTotal.Add(f)
+		m.topupAmountNativeTotal.Add(weiToNativeTokenFloat(delta))
 	}
 
 	m.prevFundings = rm.TotalFundings

@@ -93,13 +93,13 @@ Address-specific defaults (if not specified in TOML):
 
 The rebalancer exposes:
 
-- `rebalancer_sender_balance_wei` — Current balance of the sender address in wei
+- `rebalancer_sender_balance_native` — Current balance of the sender address in native token units
   - Updated every `CheckInterval`
 - `rebalancer_topup_limit_reached_total` — Counter of skipped top-ups due to rate limiting
   - Labels: `address`, `limit_type` (`daily` or `weekly`)
 
 Example queries:
-- `rebalancer_sender_balance_wei / 1e18` (convert wei to FLR)
+- `rebalancer_sender_balance_native`
 - `rate(rebalancer_topup_limit_reached_total[1h])` (rate-limited events per hour)
 
 ## Logging

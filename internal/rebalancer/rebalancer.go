@@ -5,7 +5,6 @@ import (
 	"crypto/ecdsa"
 	"errors"
 	"fmt"
-	"math/big"
 	"net/http"
 	"net/url"
 	"strings"
@@ -203,7 +202,7 @@ func (r *Rebalancer) serveMetrics(ctx context.Context) error {
 	return nil
 }
 
-// monitorSenderBalance periodically updates the sender's balance metric.
+// monitorSenderBalance refreshes the sender balance gauge on each check interval.
 func (r *Rebalancer) monitorSenderBalance(ctx context.Context) {
 	ticker := time.NewTicker(r.checkInterval)
 	defer ticker.Stop()
@@ -219,11 +218,7 @@ func (r *Rebalancer) monitorSenderBalance(ctx context.Context) {
 				continue
 			}
 
-			// Convert big.Int to float64 for gauge
-			// Use big.Float for precision when converting
-			fBal := new(big.Float).SetInt(bal)
-			fBalVal, _ := fBal.Float64()
-			r.metrics.senderBalance.Set(fBalVal)
+			r.metrics.senderBalance.Set(weiToNativeTokenFloat(bal))
 		}
 	}
 }
