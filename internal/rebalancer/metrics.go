@@ -103,7 +103,6 @@ func (m *metrics) applyTopupCounterDeltas(rm rebalancer.RebalancerMetrics) {
 	} else {
 		totalAmt = big.NewInt(0)
 	}
-
 	if m.pushInitialized && (rm.TotalFundings < m.prevFundings ||
 		(m.prevAmountWei != nil && totalAmt.Cmp(m.prevAmountWei) < 0)) {
 		m.pushInitialized = false
@@ -111,6 +110,15 @@ func (m *metrics) applyTopupCounterDeltas(rm rebalancer.RebalancerMetrics) {
 	}
 
 	if !m.pushInitialized {
+		// Baseline-only would miss top-ups that completed before this first snapshot
+		// (e.g. first check cycle funded). Seed counters from current totals once.
+		if rm.TotalFundings > 0 {
+			m.successfulTopupsTotal.Add(float64(rm.TotalFundings))
+		}
+		if totalAmt.Sign() > 0 {
+			f, _ := new(big.Float).SetInt(totalAmt).Float64()
+			m.topupAmountWeiTotal.Add(f)
+		}
 		m.prevFundings = rm.TotalFundings
 		m.prevAmountWei = new(big.Int).Set(totalAmt)
 		m.pushInitialized = true
