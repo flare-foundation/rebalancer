@@ -62,11 +62,11 @@ func New(sender Sender, balanceChecker BalanceChecker, cfg Config, logger Logger
 		stoppedCh: make(chan struct{}),
 	}
 
-	// Add initial addresses if provided
+	// Add initial addresses if provided (same validation as AddAddress)
 	if cfg.InitialAddresses != nil {
 		for _, ta := range cfg.InitialAddresses {
 			if ta != nil {
-				if err := r.addAddressInternal(ta); err != nil {
+				if err := r.AddAddress(ta); err != nil {
 					return nil, fmt.Errorf("failed to add initial address: %w", err)
 				}
 			}
@@ -227,7 +227,9 @@ func (r *Rebalancer) checkAndRebalance(ctx context.Context) error {
 
 			if ok && result.Balance.Cmp(tracked.MinBalance) < 0 {
 				amountToSend := new(big.Int).Sub(tracked.TopUpValue, result.Balance)
-				totalToSend = new(big.Int).Add(totalToSend, amountToSend)
+				if amountToSend.Sign() > 0 {
+					totalToSend = new(big.Int).Add(totalToSend, amountToSend)
+				}
 			}
 		}
 	}
@@ -260,6 +262,14 @@ func (r *Rebalancer) checkAndRebalance(ctx context.Context) error {
 
 		if result.NeedsFunds {
 			amountToSend := new(big.Int).Sub(tracked.TopUpValue, result.Balance)
+			if amountToSend.Sign() <= 0 {
+				r.logger.Warnf(
+					"skip funding %s: top_up_value (%s) is not above balance (%s) but balance is below min_balance (%s); fix config so top_up_value >= min_balance and top_up_value > balance when below min",
+					result.Address.Hex(), tracked.TopUpValue.String(), result.Balance.String(), tracked.MinBalance.String(),
+				)
+				continue
+			}
+
 			nowTime := r.nowFunc()
 
 			if r.exceedsLimit(tracked, amountToSend, nowTime) {
@@ -283,7 +293,7 @@ func (r *Rebalancer) checkAndRebalance(ctx context.Context) error {
 			r.metrics.LastFundTime = now
 			r.metrics.TotalAmountSent = new(big.Int).Add(r.metrics.TotalAmountSent, amountToSend)
 
-			r.logger.Infof("funded address %s with %s, new balance will be %s",
+			r.logger.Infof("funded address %s with %s wei (target balance top_up_value=%s)",
 				result.Address.Hex(), amountToSend.String(), tracked.TopUpValue.String())
 		} else {
 			r.logger.Debugf("address %s has sufficient balance %s (min %s)",

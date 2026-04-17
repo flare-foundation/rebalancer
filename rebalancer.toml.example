@@ -33,11 +33,12 @@ metrics_addr = ":8080"
 # For detailed options, see: github.com/flare-foundation/go-flare-common/pkg/logger
 [logger]
 # Log level (debug, info, warn, error)
-# Default: info
 level = "info"
-# Log format (json or text)
-# Default: text
-format = "text"
+# Required for logs to stdout unless you set file below; omitted means no console/file cores.
+console = true
+# Optional: write logs to a file (with rotation) instead of or in addition to console
+# file = "/var/log/rebalancer.log"
+# max_file_size = 100
 
 # List of addresses to monitor and rebalance
 # Each address can have optional custom min_balance_wei and top_up_value_wei
