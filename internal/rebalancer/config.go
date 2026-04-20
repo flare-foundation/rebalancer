@@ -79,14 +79,14 @@ type Config struct {
 	WarningBalanceFLR int64                  `toml:"warning_balance_flr" envconfig:"REBALANCER_WARNING_BALANCE_FLR"`
 	Addresses         []TrackedAddressConfig `toml:"addresses"`
 
-	// metrics HTTP server address
+	// MetricsAddr is the listen address for the Prometheus metrics HTTP server.
 	MetricsAddr string `toml:"metrics_addr" envconfig:"REBALANCER_METRICS_ADDR"`
 
-	// txmng config
+	// Transaction manager configuration.
 	TxTimeout  time.Duration `toml:"tx_timeout" envconfig:"REBALANCER_TX_TIMEOUT"`
 	MaxRetries int           `toml:"max_retries" envconfig:"REBALANCER_MAX_RETRIES"`
 
-	// logger config
+	// Logger holds the structured-logger configuration consumed by go-flare-common.
 	Logger logger.Config `toml:"logger"`
 }
 

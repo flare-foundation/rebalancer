@@ -21,7 +21,7 @@ The Rebalancer is a process that:
 import (
     "context"
     "github.com/ethereum/go-ethereum/ethclient"
-    "github.com/flare-foundation/flare-system-client/pkg/rebalancer"
+    "github.com/flare-foundation/rebalancer/pkg/rebalancer"
 )
 
 // Create a balance checker (e.g., using go-ethereum ethclient)
@@ -159,14 +159,14 @@ err := rb.AddAddress(addr, minBal, topUpVal)
 err := rb.RemoveAddress(addr)
 
 // Get all tracked addresses
-tracked := rb.GetTrackedAddresses()
+tracked := rb.TrackedAddresses()
 ```
 
 ### Monitoring
 
 ```go
 // Get current metrics
-metrics := rb.GetMetrics()
+metrics := rb.Metrics()
 println("Total fundings:", metrics.TotalFundings)
 println("Total amount sent:", metrics.TotalAmountSent.String())
 ```

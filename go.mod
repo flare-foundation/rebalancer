@@ -1,4 +1,4 @@
-module github.com/flare-network/rebalancer
+module github.com/flare-foundation/rebalancer
 
 go 1.25.5
 

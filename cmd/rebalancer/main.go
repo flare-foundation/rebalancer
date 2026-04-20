@@ -8,7 +8,7 @@ import (
 	"syscall"
 
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
-	"github.com/flare-network/rebalancer/internal/rebalancer"
+	"github.com/flare-foundation/rebalancer/internal/rebalancer"
 )
 
 func main() {
