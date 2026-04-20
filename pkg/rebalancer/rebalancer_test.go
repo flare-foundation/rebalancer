@@ -203,7 +203,7 @@ func TestRemoveAddress(t *testing.T) {
 	require.Error(t, r.RemoveAddress(addr))
 }
 
-func TestGetTrackedAddresses(t *testing.T) {
+func TestTrackedAddresses(t *testing.T) {
 	cfg := Config{
 		CheckInterval: 1 * time.Millisecond,
 	}
@@ -227,20 +227,20 @@ func TestGetTrackedAddresses(t *testing.T) {
 	require.NoError(t, r.AddAddress(ta1))
 	require.NoError(t, r.AddAddress(ta2))
 
-	tracked := r.GetTrackedAddresses()
+	tracked := r.TrackedAddresses()
 	require.Len(t, tracked, 2)
 	require.Contains(t, tracked, addr1)
 	require.Contains(t, tracked, addr2)
 }
 
-func TestGetMetrics(t *testing.T) {
+func TestMetrics(t *testing.T) {
 	cfg := Config{
 		CheckInterval: 1 * time.Millisecond,
 	}
 	r, err := New(newMockSender(), nil, cfg, nil)
 	require.NoError(t, err)
 
-	metrics := r.GetMetrics()
+	metrics := r.Metrics()
 
 	require.Equal(t, uint64(0), metrics.TotalChecks)
 	require.Equal(t, uint64(0), metrics.TotalFundings)

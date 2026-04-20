@@ -7,16 +7,19 @@ services:
       dockerfile: Dockerfile
     container_name: rebalancer
     restart: unless-stopped
+    user: "10001:10001"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp
+      - /app/logs:uid=10001,gid=10001
     environment:
       # Required environment variables (no defaults)
       ETH_RPC_URL: ${ETH_RPC_URL:-http://localhost:8545}
       REBALANCER_PRIVATE_KEY: ${REBALANCER_PRIVATE_KEY}
-
-      # Optional overrides (can override TOML values)
-      REBALANCER_CHECK_INTERVAL: ${REBALANCER_CHECK_INTERVAL:-5m}
-      REBALANCER_WARNING_BALANCE_FLR: ${REBALANCER_WARNING_BALANCE_FLR:-1000}
-      REBALANCER_TX_TIMEOUT: ${REBALANCER_TX_TIMEOUT:-10s}
-      REBALANCER_MAX_RETRIES: ${REBALANCER_MAX_RETRIES:-3}
 
     # Mount config file (copy rebalancer.toml.example to rebalancer.toml and customize)
     volumes:

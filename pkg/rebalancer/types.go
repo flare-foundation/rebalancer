@@ -31,6 +31,8 @@ type Logger interface {
 // NoOpLogger is a default logger that does no logging.
 type NoOpLogger struct{}
 
+var _ Logger = (*NoOpLogger)(nil)
+
 func (n *NoOpLogger) Infof(format string, args ...any)  {}
 func (n *NoOpLogger) Info(args ...any)                  {}
 func (n *NoOpLogger) Debugf(format string, args ...any) {}
@@ -53,7 +55,7 @@ type LimitReporter interface {
 
 // MetricPusher is called to push the latest rebalancer metrics to an external sink.
 type MetricPusher interface {
-	Push(RebalancerMetrics)
+	Push(Metrics)
 }
 
 // FundingRecord records a single funding event with its amount and time.
@@ -107,8 +109,8 @@ type BalanceCheckResult struct {
 	Error      error
 }
 
-// RebalancerMetrics tracks statistics about rebalancing operations.
-type RebalancerMetrics struct {
+// Metrics tracks statistics about rebalancing operations.
+type Metrics struct {
 	TotalChecks     uint64
 	TotalFundings   uint64
 	TotalAmountSent *big.Int

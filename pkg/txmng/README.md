@@ -15,7 +15,7 @@ A sequential transaction manager for Ethereum-compatible blockchains that handle
 ## Installation
 
 ```bash
-import "github.com/flare-foundation/flare-system-client/pkg/txmng"
+import "github.com/flare-foundation/rebalancer/pkg/txmng"
 ```
 
 ## Usage
@@ -26,7 +26,7 @@ import "github.com/flare-foundation/flare-system-client/pkg/txmng"
 import (
     "crypto/ecdsa"
     "github.com/ethereum/go-ethereum/ethclient"
-    "github.com/flare-foundation/flare-system-client/pkg/txmng"
+    "github.com/flare-foundation/rebalancer/pkg/txmng"
 )
 
 privateKey := ... // *ecdsa.PrivateKey
@@ -167,7 +167,7 @@ import (
     "github.com/ethereum/go-ethereum/common"
     "github.com/ethereum/go-ethereum/crypto"
     "github.com/ethereum/go-ethereum/ethclient"
-    "github.com/flare-foundation/flare-system-client/pkg/txmng"
+    "github.com/flare-foundation/rebalancer/pkg/txmng"
 )
 
 func main() {

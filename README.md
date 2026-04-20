@@ -182,13 +182,15 @@ curl http://localhost:8080/metrics
 
 | Metric | Type | Description |
 |---|---|---|
-| `rebalancer_sender_balance_wei` | Gauge | Current balance of the rebalancer's signing address in wei |
+| `rebalancer_sender_balance_native` | Gauge | Current balance of the rebalancer's signing address in **native token units** (not wei) |
 | `rebalancer_topup_limit_reached_total` | Counter | Top-ups skipped due to rate limits, labeled by `address` and `limit_type` (`daily` / `weekly`) |
 | `rebalancer_checks` | Gauge | Cumulative number of balance check cycles completed |
 | `rebalancer_fundings` | Gauge | Cumulative number of successful top-up transactions sent |
-| `rebalancer_amount_sent_wei` | Gauge | Cumulative amount sent in wei across all top-up transactions |
+| `rebalancer_successful_topups_total` | Counter | Increments once per successful top-up (for `increase`/`rate` in Prometheus) |
+| `rebalancer_topup_amount_native_total` | Counter | Cumulative top-ups in **native token units** (not wei); safe for Prometheus float64 |
+| `rebalancer_amount_sent_native` | Gauge | Cumulative amount sent in **native token units** across all top-up transactions |
 | `rebalancer_last_check_timestamp_seconds` | Gauge | Unix timestamp of the most recent balance check cycle |
-| `rebalancer_last_funding_timestamp_seconds` | Gauge | Unix timestamp of the most recent top-up transaction |
+| `rebalancer_last_funding_timestamp_seconds` | Gauge | Unix seconds for the most recent successful top-up; **0 until the first top-up** in this process (do not use `time() - metric` in alerts when the value is 0) |
 
 To change the listen address, set `metrics_addr` in `rebalancer.toml` or use the `REBALANCER_METRICS_ADDR` environment variable.
 

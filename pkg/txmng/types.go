@@ -35,6 +35,8 @@ type Logger interface {
 // NoOpLogger is a default logger that does no logging.
 type NoOpLogger struct{}
 
+var _ Logger = (*NoOpLogger)(nil)
+
 func (n *NoOpLogger) Infof(format string, args ...any)  {}
 func (n *NoOpLogger) Info(args ...any)                  {}
 func (n *NoOpLogger) Debugf(format string, args ...any) {}

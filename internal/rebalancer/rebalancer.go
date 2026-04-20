@@ -5,7 +5,6 @@ import (
 	"crypto/ecdsa"
 	"errors"
 	"fmt"
-	"math/big"
 	"net/http"
 	"net/url"
 	"strings"
@@ -14,13 +13,15 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
-	"github.com/flare-network/rebalancer/pkg/rebalancer"
-	"github.com/flare-network/rebalancer/pkg/txmng"
+	"github.com/flare-foundation/rebalancer/pkg/rebalancer"
+	"github.com/flare-foundation/rebalancer/pkg/txmng"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/sync/errgroup"
 )
 
 const defaultMetricsAddr = ":8080"
+
+var _ rebalancer.Sender = (*txmng.Manager)(nil)
 
 // Rebalancer wires together pkg/txmng and pkg/rebalancer with real dependencies.
 type Rebalancer struct {
@@ -62,7 +63,7 @@ func New(cfg Config) (*Rebalancer, error) {
 	}
 
 	// Parse private key
-	pk, err := PrivateKeyFromHex(cfg.PrivateKeyHex)
+	pk, err := privateKeyFromHex(cfg.PrivateKeyHex)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse private key: %w", err)
 	}
@@ -203,7 +204,7 @@ func (r *Rebalancer) serveMetrics(ctx context.Context) error {
 	return nil
 }
 
-// monitorSenderBalance periodically updates the sender's balance metric.
+// monitorSenderBalance refreshes the sender balance gauge on each check interval.
 func (r *Rebalancer) monitorSenderBalance(ctx context.Context) {
 	ticker := time.NewTicker(r.checkInterval)
 	defer ticker.Stop()
@@ -219,16 +220,12 @@ func (r *Rebalancer) monitorSenderBalance(ctx context.Context) {
 				continue
 			}
 
-			// Convert big.Int to float64 for gauge
-			// Use big.Float for precision when converting
-			fBal := new(big.Float).SetInt(bal)
-			fBalVal, _ := fBal.Float64()
-			r.metrics.senderBalance.Set(fBalVal)
+			r.metrics.senderBalance.Set(weiToNativeTokenFloat(bal))
 		}
 	}
 }
 
-func PrivateKeyFromHex(privateKey string) (*ecdsa.PrivateKey, error) {
+func privateKeyFromHex(privateKey string) (*ecdsa.PrivateKey, error) {
 	privateKey = strings.TrimPrefix(privateKey, "0x")
 
 	privKey, err := crypto.HexToECDSA(privateKey)

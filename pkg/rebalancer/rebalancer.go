@@ -25,7 +25,7 @@ type Rebalancer struct {
 
 	mu        sync.RWMutex
 	addresses map[common.Address]*TrackedAddress
-	metrics   RebalancerMetrics
+	metrics   Metrics
 	stopChan  chan struct{}
 	stoppedCh chan struct{}
 }
@@ -55,18 +55,18 @@ func New(sender Sender, balanceChecker BalanceChecker, cfg Config, logger Logger
 		warningBalance: cfg.WarningBalance,
 		nowFunc:        time.Now,
 		addresses:      make(map[common.Address]*TrackedAddress),
-		metrics: RebalancerMetrics{
+		metrics: Metrics{
 			TotalAmountSent: big.NewInt(0),
 		},
 		stopChan:  make(chan struct{}),
 		stoppedCh: make(chan struct{}),
 	}
 
-	// Add initial addresses if provided
+	// Add initial addresses if provided (same validation as AddAddress)
 	if cfg.InitialAddresses != nil {
 		for _, ta := range cfg.InitialAddresses {
 			if ta != nil {
-				if err := r.addAddressInternal(ta); err != nil {
+				if err := r.AddAddress(ta); err != nil {
 					return nil, fmt.Errorf("failed to add initial address: %w", err)
 				}
 			}
@@ -122,8 +122,8 @@ func (r *Rebalancer) RemoveAddress(addr common.Address) error {
 	return nil
 }
 
-// GetTrackedAddresses returns a copy of all currently tracked addresses.
-func (r *Rebalancer) GetTrackedAddresses() map[common.Address]*TrackedAddress {
+// TrackedAddresses returns a copy of all currently tracked addresses.
+func (r *Rebalancer) TrackedAddresses() map[common.Address]*TrackedAddress {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -132,12 +132,12 @@ func (r *Rebalancer) GetTrackedAddresses() map[common.Address]*TrackedAddress {
 	return result
 }
 
-// GetMetrics returns a copy of the current metrics.
-func (r *Rebalancer) GetMetrics() RebalancerMetrics {
+// Metrics returns a copy of the current metrics.
+func (r *Rebalancer) Metrics() Metrics {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	return RebalancerMetrics{
+	return Metrics{
 		TotalChecks:     r.metrics.TotalChecks,
 		TotalFundings:   r.metrics.TotalFundings,
 		TotalAmountSent: new(big.Int).Set(r.metrics.TotalAmountSent),
@@ -227,7 +227,9 @@ func (r *Rebalancer) checkAndRebalance(ctx context.Context) error {
 
 			if ok && result.Balance.Cmp(tracked.MinBalance) < 0 {
 				amountToSend := new(big.Int).Sub(tracked.TopUpValue, result.Balance)
-				totalToSend = new(big.Int).Add(totalToSend, amountToSend)
+				if amountToSend.Sign() > 0 {
+					totalToSend = new(big.Int).Add(totalToSend, amountToSend)
+				}
 			}
 		}
 	}
@@ -260,6 +262,14 @@ func (r *Rebalancer) checkAndRebalance(ctx context.Context) error {
 
 		if result.NeedsFunds {
 			amountToSend := new(big.Int).Sub(tracked.TopUpValue, result.Balance)
+			if amountToSend.Sign() <= 0 {
+				r.logger.Warnf(
+					"skip funding %s: top_up_value (%s) is not above balance (%s) but balance is below min_balance (%s); fix config so top_up_value >= min_balance and top_up_value > balance when below min",
+					result.Address.Hex(), tracked.TopUpValue.String(), result.Balance.String(), tracked.MinBalance.String(),
+				)
+				continue
+			}
+
 			nowTime := r.nowFunc()
 
 			if r.exceedsLimit(tracked, amountToSend, nowTime) {
@@ -272,18 +282,20 @@ func (r *Rebalancer) checkAndRebalance(ctx context.Context) error {
 				continue
 			}
 
+			sentAt := r.nowFunc()
 			tracked.FundingHistory = append(tracked.FundingHistory, FundingRecord{
 				Amount: new(big.Int).Set(amountToSend),
-				Time:   nowTime,
+				Time:   sentAt,
 			})
-			tracked.PruneFundingHistory(nowTime)
+			tracked.PruneFundingHistory(sentAt)
 
-			tracked.LastFundedAt = now
+			sentUnix := sentAt.Unix()
+			tracked.LastFundedAt = sentUnix
 			r.metrics.TotalFundings++
-			r.metrics.LastFundTime = now
+			r.metrics.LastFundTime = sentUnix
 			r.metrics.TotalAmountSent = new(big.Int).Add(r.metrics.TotalAmountSent, amountToSend)
 
-			r.logger.Infof("funded address %s with %s, new balance will be %s",
+			r.logger.Infof("funded address %s with %s wei (target balance top_up_value=%s)",
 				result.Address.Hex(), amountToSend.String(), tracked.TopUpValue.String())
 		} else {
 			r.logger.Debugf("address %s has sufficient balance %s (min %s)",
@@ -292,7 +304,7 @@ func (r *Rebalancer) checkAndRebalance(ctx context.Context) error {
 	}
 
 	if r.metricPusher != nil {
-		r.metricPusher.Push(RebalancerMetrics{
+		r.metricPusher.Push(Metrics{
 			TotalChecks:     r.metrics.TotalChecks,
 			TotalFundings:   r.metrics.TotalFundings,
 			TotalAmountSent: new(big.Int).Set(r.metrics.TotalAmountSent),
